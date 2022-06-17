@@ -18,15 +18,25 @@
 const {PubSub} = require('@google-cloud/pubsub');
 
 //Define destination topics
-const topic_trades_btc_usd = 'projects/fsi-select-demo/topics/ftx_trades_btc_usd';
-const topic_trades_eth_usd = 'projects/fsi-select-demo/topics/ftx_trades_eth_usd';
-const topic_trades_sol_usd = 'projects/fsi-select-demo/topics/ftx_trades_sol_usd';
-const topic_ticker_btc_usd = 'projects/fsi-select-demo/topics/ftx_ticker_btc_usd';
-const topic_ticker_eth_usd = 'projects/fsi-select-demo/topics/ftx_ticker_eth_usd';
-const topic_ticker_sol_usd = 'projects/fsi-select-demo/topics/ftx_ticker_sol_usd';
+const topic_destination = "projects/fsi-select-demo/topics/ftx_";
 
 // Creates a Pub/Sub API client; cache this for further use
 const pubSubClient = new PubSub();
+
+// An array of the market names 
+var marketList = [];
+// An array of the subscribed market names 
+var marketSubscribeList = [];
+
+// command line arguments
+const clArgs = process.argv.slice(2);
+console.log(clArgs);
+
+// flag to output message
+var outputMessages = false;
+if(clArgs.length > 0 && clArgs[0] === "true") {
+    outputMessages = true;
+}
 
 // Function to publish message to Pub/Sub topic
 async function publishMessage(data, topic) {
@@ -68,7 +78,7 @@ client.on('connectFailed', function(error) {
     console.log('Connect Error: ' + error.toString());
 });
 
-//Define actions for succsscul connection
+//Define actions for successful connection
 client.on('connect', function(connection) {
     console.log('WebSocket Client Connected');
     connection.on('error', function(error) {
@@ -84,24 +94,24 @@ client.on('connect', function(connection) {
             var data = JSON.parse(message.utf8Data);
             data.time_ws = getTimestamp();
 
-            //Publish trades channel messages to their topics
-            if (data.type === 'update' & data.channel === 'trades' & data.market === 'BTC/USD')
-                publishMessage(JSON.stringify(data), topic_trades_btc_usd);
-            if (data.type === 'update' & data.channel === 'trades' & data.market === 'ETH/USD')
-                publishMessage(JSON.stringify(data), topic_trades_eth_usd);
-            if (data.type === 'update' & data.channel === 'trades' & data.market === 'SOL/USD')
-                publishMessage(JSON.stringify(data), topic_trades_sol_usd);
+            //console.log("WS data");
+            //console.log(JSON.stringify(data))
 
-            //Publish ticker channel messages to their topics
-            if (data.type === 'update' & data.channel === 'ticker' & data.market === 'BTC/USD')
-                publishMessage(JSON.stringify(data), topic_ticker_btc_usd);
-            if (data.type === 'update' & data.channel === 'ticker' & data.market === 'ETH/USD')
-                publishMessage(JSON.stringify(data), topic_ticker_eth_usd);
-            if (data.type === 'update' & data.channel === 'ticker' & data.market === 'SOL/USD')
-                publishMessage(JSON.stringify(data), topic_ticker_sol_usd);
-            
+            // Checks market list data
+            if (data.channel === 'markets') {
+                if(outputMessages)
+                    console.log("Markets \n" + new Date().toISOString() + "\n" + JSON.stringify(data));
+                checkMarketList(data);
+            }
+
+            // publishes the data to the matching topic
+            if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker')) { 
+                publishMessage(JSON.stringify(data), formatTopicName(data.channel, data.market));
+            }
+
             //Print message in console
-            console.log("Received: '" + JSON.stringify(data) + "'");
+            if(outputMessages)
+                console.log("Received: '" + JSON.stringify(data) + "'");
         }
     });
     
@@ -111,54 +121,148 @@ client.on('connect', function(connection) {
             connection.send(JSON.stringify({
                 op: 'ping'
             }));
+            console.log("ping " + new Date(new Date()-3600*1000*3).toISOString());
             setTimeout(sendPing, 15000);
         }
     }
     sendPing();
 
     //Subscribe to market data channels
-    function subscribe() {
+    /*
+    connection.send(JSON.stringify({
+                'op': 'subscribe',
+                'channel': 'ticker',
+                'market': 'SOL/USD'
+            }));
+    */
+    function subscribeToChannel(channelName, marketName) {
         if (connection.connected) {
+ 
             connection.send(JSON.stringify({
                 'op': 'subscribe',
-                'channel': 'trades',
-                'market': 'BTC/USD'
-            }));
-
-            connection.send(JSON.stringify({
-                'op': 'subscribe',
-                'channel': 'trades',
-                'market': 'ETH/USD'
-            }));
-
-            connection.send(JSON.stringify({
-                'op': 'subscribe',
-                'channel': 'trades',
-                'market': 'SOL/USD'
-            }));
-
-            connection.send(JSON.stringify({
-                'op': 'subscribe',
-                'channel': 'ticker',
-                'market': 'BTC/USD'
-            }));
-
-            connection.send(JSON.stringify({
-                'op': 'subscribe',
-                'channel': 'ticker',
-                'market': 'ETH/USD'
-            }));
-
-            connection.send(JSON.stringify({
-                'op': 'subscribe',
-                'channel': 'ticker',
-                'market': 'SOL/USD'
+                'channel': channelName,
+                'market': marketName
             }));
         
         }
     }
-    subscribe();
+
+    // Subscribe to market data channel to get list of markets
+    // an updated set of market list will be sent every 60sec
+    function subscribeToMarketList() {
+        if (connection.connected) {
+           
+            connection.send(JSON.stringify({
+                'op': 'subscribe',
+                'channel': 'markets'
+            }));
+
+        }
+    }
+
+    // Parses through market list
+    // Checks previous list to see if there are any changes
+    // If no previous list, then iterate through each one
+    //  - check if there is a topic for the market name
+    //  - if there is, then 
+    //       - save that market name into the list
+    //       - then subsribe to the market feed
+    //  - if there is not, then 
+    //       - create a topic, 
+    //       - save the market name into the list
+    //       - then subsribe to the market feed
+    function checkMarketList(marketListData) {
+
+        // null check
+        if(marketListData == null || marketListData.data == null || marketListData.data.data == null) 
+            return;
+
+        for (const marketKey in marketListData.data.data) {
+            console.log("Checking " + marketKey);
+            if(marketList.includes(marketKey)) {
+                // then check subscribe list
+                if(marketSubscribeList.includes(marketKey)) {
+                    // do nothing
+                    console.log(marketKey + " all set");
+                } else {
+                    // subscribe
+                    console.log("Subscribing " + marketKey);
+                    subscribeToChannel("ticker", marketKey);
+                    subscribeToChannel("trades", marketKey);
+                    marketSubscribeList.push(marketKey);
+                }
+            } else {
+                // check if topic, if not, then create
+                console.log("Checking topic for " + marketKey);
+                createPubSubTopic(formatTopicName("trades", marketKey));
+                sleep(3000);
+                createPubSubTopic(formatTopicName("ticker", marketKey));
+                sleep(3000);
+                marketList.push(marketKey);
+
+                // subscribe
+                console.log("Subscribing " + marketKey);
+                subscribeToChannel("ticker", marketKey);
+                subscribeToChannel("trades", marketKey);
+                marketSubscribeList.push(marketKey);
+            }
+        }
+
+
+    }
+
+
+    // formats topic name according to naming convention
+    function formatTopicName(channel, market) {
+
+        market = market.replace("/","_");
+        var topicName = topic_destination + channel.toLowerCase() + "_" + market.toLowerCase();
+        console.log(topicName);
+        return topicName;
+    }
+
+    function createPubSubTopic(topicName) {
+
+        try {
+            var topic = pubSubClient.topic(topicName);
+            topic.exists((err, exists) => {
+                if (err) {
+                    console.error(`Error looking for specified topic ${topicName}: ${error}`);
+                    process.exit(1);
+                } else {
+                    if (!exists) {
+                        console.error(`Topic ${topicName} not found, creating...`);
+                        topic.create((err, topic, apiResponse) => {
+                            if (err) {
+                                console.error(`Could not create non-existent topic ${topicName}: ${apiResponse} ${err}`);
+                                //process.exit(1);
+                            } else {
+                                console.error(`Created topic ${topicName}`);
+                                //publishMessages();
+                            }
+                        });
+                    } else {
+                        // do nothing for now
+                        console.log(topicName + " topic exists");
+                    }
+                }
+            });
+        } catch (error) {
+            console.error(`Error: ${error}`);
+            process.exit(1);
+        }
+
+
+    }
+
+    function sleep(millis) {
+        return new Promise(resolve => setTimeout(resolve, millis));
+    }
+
+
+    subscribeToMarketList();
     
 });
+
 //Connect to FTX US websocket server
 client.connect('wss://ftx.us/ws/', null);
