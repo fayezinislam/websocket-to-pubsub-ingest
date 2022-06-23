@@ -15,10 +15,15 @@
 // limitations under the License.
 
 // Imports the Google Cloud client library
-const {PubSub} = require('@google-cloud/pubsub');
+//const {PubSub} = require('@google-cloud/pubsub');
+import {PubSub} from "@google-cloud/pubsub";
+
+// Imports GOT library for REST API calls
+//const got = require('got');
+import got from "got";
 
 //Define destination topics
-const topic_destination = "projects/fsi-select-demo/topics/ftx_";
+const topic_destination = "projects/ftx-streaming-demo/topics/ftx_";
 
 // Creates a Pub/Sub API client; cache this for further use
 const pubSubClient = new PubSub();
@@ -27,6 +32,14 @@ const pubSubClient = new PubSub();
 var marketList = [];
 // An array of the subscribed market names 
 var marketSubscribeList = [];
+// An object index of the market name's last message received
+var marketLastMessageList = {};
+// Message buffer for markets
+var marketMessageBuffer = {};
+// Flag to indicate that it's a reconnect and need to 
+// initialize and handle the buffers so the missing data
+// can be retrieved
+var handleReconnectBuffers = false;
 
 // command line arguments
 const clArgs = process.argv.slice(2);
@@ -48,9 +61,10 @@ async function publishMessage(data, topic) {
       console.log(`Message ${messageId} published.`);
     } catch (error) {
       console.error(`Received error while publishing: ${error.message}`);
-      process.exitCode = 1;
+      //process.exitCode = 1;
     }
 }
+
 
 //Function to get current timestamp in UTC
 function getTimestamp() {
@@ -70,7 +84,10 @@ function getTimestamp() {
 function pad(n){return n<10 ? '0'+n : n}
 
 //Creates a websocket API client
-var WebSocketClient = require('websocket').client;
+//var WebSocketClient = require('websocket').client;
+import WebSocket from "websocket";
+var WebSocketClient = WebSocket.client;
+
 var client = new WebSocketClient();
 
 //On connection failure log error to console
@@ -86,6 +103,9 @@ client.on('connect', function(connection) {
     });
     connection.on('close', function() {
         console.log('Connection Closed. Attempting to reconnect...');
+        // subscriptions have been lost, so reset subscriptions
+        marketSubscribeList = [];  
+        //handleReconnectBuffers = true;
         client.connect('wss://ftx.us/ws/', null);
     });
     connection.on('message', function(message) {
@@ -106,7 +126,22 @@ client.on('connect', function(connection) {
 
             // publishes the data to the matching topic
             if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker')) { 
-                publishMessage(JSON.stringify(data), formatTopicName(data.channel, data.market));
+                console.log(JSON.stringify(data));
+                if(data.channel === 'trades') { 
+                    //convertDateToEpoch(data.data[0].time);
+                    //convertDateToEpoch(data.time_ws);
+                    // capture message and save as last received message
+                    marketLastMessageList[data.market, data];
+                }
+                // if no buffer, then publish directly
+                if(marketMessageBuffer[data.market] === undefined) {
+                    publishMessage(JSON.stringify(data), formatTopicName(data.channel, data.market));
+                }
+                else {
+                    // if buffer is initialized, then add to buffer
+                    publishMessageToBuffer(data);
+                } 
+
             }
 
             //Print message in console
@@ -179,11 +214,15 @@ client.on('connect', function(connection) {
 
         for (const marketKey in marketListData.data.data) {
             console.log("Checking " + marketKey);
+            if(handleReconnectBuffers) {
+                // initialize with empty array for buffer
+                marketMessageBuffer[marketKey,[]];
+            }
             if(marketList.includes(marketKey)) {
                 // then check subscribe list
                 if(marketSubscribeList.includes(marketKey)) {
                     // do nothing
-                    console.log(marketKey + " all set");
+                    console.log(marketKey + " already subscribed");
                 } else {
                     // subscribe
                     console.log("Subscribing " + marketKey);
@@ -193,18 +232,21 @@ client.on('connect', function(connection) {
                 }
             } else {
                 // check if topic, if not, then create
-                console.log("Checking topic for " + marketKey);
-                createPubSubTopic(formatTopicName("trades", marketKey));
-                sleep(3000);
-                createPubSubTopic(formatTopicName("ticker", marketKey));
-                sleep(3000);
-                marketList.push(marketKey);
+                // just focus on one for now
+                //if(marketKey === "BTC/USD") { 
+                    console.log("Checking topic for " + marketKey);
+                    createPubSubTopic(formatTopicName("trades", marketKey),marketKey);
+                    sleep(3000);
+                    createPubSubTopic(formatTopicName("ticker", marketKey),marketKey);
+                    sleep(3000);
+                    marketList.push(marketKey);
 
-                // subscribe
-                console.log("Subscribing " + marketKey);
-                subscribeToChannel("ticker", marketKey);
-                subscribeToChannel("trades", marketKey);
-                marketSubscribeList.push(marketKey);
+                    // subscribe - MOVE CALL TO createPubSubTopic
+                    //console.log("Subscribing " + marketKey);
+                    //subscribeToChannel("ticker", marketKey);
+                    //subscribeToChannel("trades", marketKey);
+                    //marketSubscribeList.push(marketKey);
+                //}
             }
         }
 
@@ -221,7 +263,11 @@ client.on('connect', function(connection) {
         return topicName;
     }
 
-    function createPubSubTopic(topicName) {
+    //
+    // Creates PubSub topic 
+    // Once created, it will subscribe to the websocket using the market name
+    // If topic already created, then it will just subscribe using the market name
+    function createPubSubTopic(topicName, market) {
 
         try {
             var topic = pubSubClient.topic(topicName);
@@ -239,11 +285,19 @@ client.on('connect', function(connection) {
                             } else {
                                 console.error(`Created topic ${topicName}`);
                                 //publishMessages();
+                                console.log("Subscribing " + market);
+                                subscribeToChannel("ticker", market);
+                                subscribeToChannel("trades", market);
+                                marketSubscribeList.push(market);
                             }
                         });
                     } else {
                         // do nothing for now
                         console.log(topicName + " topic exists");
+                        console.log("Subscribing " + market);
+                        subscribeToChannel("ticker", market);
+                        subscribeToChannel("trades", market);
+                        marketSubscribeList.push(market);
                     }
                 }
             });
@@ -255,8 +309,93 @@ client.on('connect', function(connection) {
 
     }
 
+
+    // If buffer enabled, then save messages to buffer
+    function publishMessageToBuffer(data) {
+        var messageArray = marketMessageBuffer[data.market];
+        if(messageArray === undefined) {
+            messageArray = [];
+            marketMessageBuffer[data.market,messageArray];
+        }
+        marketMessageBuffer[data.market,messageArray.push(data)];
+    }
+
+    function requestMissingTradeData(market) {
+        // make a REST API call to retrieve missing data between the 
+        // time frames
+        var lastMessage = marketLastMessageList[market];
+        var startTime = lastMessage.time_ws;
+        var messageBufferArray = marketMessageBuffer[market];
+        var dataArrayLength = messageBufferArray[0].data.length;
+        var endTime = messageBufferArray[0].data[dataArrayLength-1].time;
+
+        var url = "https://ftx.us/api/markets/BTC/USD/trades?start_time=" + startTime + "&end_time=" + endTime;
+
+        got.get(url, {responseType: 'json'})
+          .then(res => {
+            //const headerDate = res.headers && res.headers.date ? res.headers.date : 'no response date';
+            //console.log('Status Code:', res.statusCode);
+            //console.log('Date in Response header:', headerDate);
+
+            const content = res.body;
+            console.log(JSON.stringify(content));
+            parseMissingData(market, content);
+
+          })
+          .catch(err => {
+            console.log('Error: ', err.message);
+          });
+    }
+
+    // Iterate through missing data,
+    // Compare to first/last records
+    // Publish buffer
+    // Switch back over to real-time (before publish realtime, double check buffer)
+    function parseMissingTradeData(market, tradeData) {
+
+        var lastMessage = marketLastMessageList[market];
+        var lastDataId = lastMessage.data[lastMessage.data.length-1].id;
+        var messageBufferArray = marketMessageBuffer[market];
+        var firstMessage = messageBufferArray[0];
+        var firstDataId = firstMessage.data[firstMessage.data.length-1].id;
+        var messagesToPublish = [];
+
+        var publishData = false;
+        // iterate in reverse order, to get the first messages first
+        for(var i=tradeData.result.length-1;i>=0;i--) {
+            data = tradeData.result[i];
+            if(data.id == lastDataId) {
+                publishData = true;
+            } else if(data.id == firstDataId) {
+                publishData = false;
+            } else {
+                if(publishData)
+                  messagesToPublish.push(data);
+            }
+        }
+
+        // publish data to topic
+        for (const message in messagesToPublish) {
+            publishMessage(JSON.stringify(message), formatTopicName(message.channel, market));
+        }
+
+        // Remove buffer
+        delete marketMessageBuffer[market];
+        if(Object.keys(marketMessageBuffer).length == 0) {
+            // once all buffers have been cleared
+            handleReconnectBuffers = false;
+        }
+
+    }
+
     function sleep(millis) {
         return new Promise(resolve => setTimeout(resolve, millis));
+    }
+
+    // Converts date string to epoch for API call
+    function convertDateToEpoch(dateString) {
+        var dateEpoch = Math.floor(new Date(dateString).getTime()/1000.0)
+        return dateEpoch;
     }
 
 
