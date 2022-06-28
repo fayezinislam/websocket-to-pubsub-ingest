@@ -17,38 +17,43 @@
 // Imports the Google Cloud client library
 import {PubSub} from "@google-cloud/pubsub";
 
-//Define destination topics
-const topic_destination = "projects/ftx-streaming-demo/topics/ftx_us_";
-
 // Creates a Pub/Sub API client; cache this for further use
 const pubSubClient = new PubSub();
 
-// An array of the market names 
-var marketList = [];
-// An array of the subscribed market names 
-var marketSubscribeList = [];
-
 // command line arguments
+// [0]=marketPair [1]=ws-url [2]=topic-prefix [3]=debug
 const clArgs = process.argv.slice(2);
 console.log(clArgs);
 
 // flag to output message
+var marketPair;
+var wsUrl;
+var topicPrefix;
 var outputMessages = false;
-if(clArgs.length > 0 && clArgs[0] === "true") {
-    outputMessages = true;
+// node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.us/ws/" "projects/ftx-streaming-demo/topics/ftx_us_" false
+if(clArgs.length != 4) {
+    console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketPairChannels.js {marketpair} {ws-url} {topic-prefix} {debug}");
+} else {
+
+    marketPair = clArgs[0];
+    wsUrl = clArgs[1];
+    topicPrefix = clArgs[2];
+    if(clArgs[3] === "true") {
+        outputMessages = true;
+    }
 }
 
 //Creates a websocket API client
 import WebSocket from "websocket";
 var WebSocketClient = WebSocket.client;
-var wsReconnectInterval = 1000 * 5;
+var wsReconnectInterval = 1000 * 1;
 
 var client;
 
 var connect = async function() { 
 
     client = new WebSocketClient();
-    client.connect('wss://ftx.us/ws/', null);
+    client.connect(wsUrl, null);
 
     //On connection failure log error to console
     client.on('connectFailed', function(error) {
@@ -64,8 +69,6 @@ var connect = async function() {
         });
         connection.on('close', function() {
             console.log('Connection Closed. Attempting to reconnect...');
-            // subscriptions have been lost, so reset subscriptions
-            marketSubscribeList = [];  
             setTimeout(connect, wsReconnectInterval);
         });
         connection.on('message', function(message) {
@@ -74,16 +77,8 @@ var connect = async function() {
                 var data = JSON.parse(message.utf8Data);
                 data.time_ws = getTimestamp();
 
-                //console.log(JSON.stringify(data))
-
-                // Checks market list data
-                if (data.channel === 'markets') {
-                    logMessage("Markets \n" + new Date().toISOString() + "\n" + JSON.stringify(data));
-                    checkMarketList(data);
-                }
-
                 // publishes the data to the matching topic
-                if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker')) { 
+                if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker') && data.market === marketPair) { 
                     publishMessage(JSON.stringify(data), formatTopicName(data.channel, data.market));
                 }
 
@@ -104,6 +99,20 @@ var connect = async function() {
         }
         sendPing();
 
+        // This is the function that is being called to start it all
+        async function subscribeToMarketChannels(marketPair) {
+
+            // Create the topic if it doesn't exist
+            // Once created, then subscribe and publish messages
+            await console.log("checking " + marketPair + " trades");
+            await createPubSubTopic(formatTopicName("trades", marketPair),marketPair,"trades");
+            await sleep(2000);
+            await console.log("checking " + marketPair + " ticker");
+            await createPubSubTopic(formatTopicName("ticker", marketPair),marketPair,"ticker");
+            await sleep(2000);
+
+        }
+
         //Subscribe to market data channels
         function subscribeToChannel(channelName, marketName) {
             if (connection.connected) {
@@ -117,115 +126,38 @@ var connect = async function() {
             }
         }
 
-        // Subscribe to market data channel to get list of markets
-        // an updated set of market list will be sent every 60sec
-        function subscribeToMarketList() {
-            if (connection.connected) {
-               
-                connection.send(JSON.stringify({
-                    'op': 'subscribe',
-                    'channel': 'markets'
-                }));
-
-            }
-        }
-
-        // Parses through market list
-        // Checks previous list to see if there are any changes
-        // If no previous list, then iterate through each one
-        //  - check if there is a topic for the market name
-        //  - if there is, then 
-        //       - save that market name into the list
-        //       - then subsribe to the market feed
-        //  - if there is not, then 
-        //       - create a topic, 
-        //       - save the market name into the list
-        //       - then subsribe to the market feed
-        async function checkMarketList(marketListData) {
-
-            // null check
-            if(marketListData == null || marketListData.data == null || marketListData.data.data == null) 
-                return;
-
-            for (const marketKey in marketListData.data.data) {
-                console.log("Checking " + marketKey);
-                if(marketList.includes(marketKey)) {
-                    // then check subscribe list
-                    if(marketSubscribeList.includes(marketKey)) {
-                        // do nothing
-                        console.log(marketKey + " already subscribed");
-                    } else {
-                        // subscribe
-                        console.log("Subscribing " + marketKey);
-                        subscribeToChannel("ticker", marketKey);
-                        subscribeToChannel("trades", marketKey);
-                        marketSubscribeList.push(marketKey);
-                    }
-                } else {
-                    // check if topic, if not, then create
-                    // just focus on one for now
-                    //if(marketKey === "BTC/USD") { 
-                        console.log("Checking topic for " + marketKey);
-                        createPubSubTopic(formatTopicName("trades", marketKey),marketKey);
-                        await sleep(1000);
-                        createPubSubTopic(formatTopicName("ticker", marketKey),marketKey);
-                        await sleep(1000);
-                        marketList.push(marketKey);
-                    //}
-                }
-            }
-
-
-        }
-
-
-        // formats topic name according to naming convention
-        function formatTopicName(channel, market) {
-
-            market = market.replace("/","_");
-            var topicName = topic_destination + channel.toLowerCase() + "_" + market.toLowerCase();
-            logMessage(topicName);
-            return topicName;
-        }
-
         //
         // Creates PubSub topic 
         // Once created, it will subscribe to the websocket using the market name
         // If topic already created, then it will just subscribe using the market name
-        async function createPubSubTopic(topicName, market) {
+        async function createPubSubTopic(topicName, market, channelName) {
 
             try {
                 var topic = pubSubClient.topic(topicName);
-                topic.exists(async (err, exists) => {
+                await topic.exists(async (err, exists) => {
                     if (err) {
                         console.error(`Error looking for specified topic ${topicName}: ${error}`);
                         process.exit(1);
                     } else {
                         if (!exists) {
                             console.error(`Topic ${topicName} not found, creating...`);
-                            topic.create(async (err, topic, apiResponse) => {
+                            await topic.create(async (err, topic, apiResponse) => {
                                 if (err) {
                                     console.error(`Could not create non-existent topic ${topicName}: ${apiResponse} ${err}`);
                                     //process.exit(1);
                                 } else {
                                     console.error(`Created topic ${topicName}`);
-                                    //publishMessages();
                                     //console.log(JSON.stringify(apiResponse));
-                                    sleep(3000);
-                                    console.log("Subscribing " + market);
-                                    subscribeToChannel("ticker", market);
-                                    sleep(3000);
-                                    subscribeToChannel("trades", market);
-                                    marketSubscribeList.push(market);
+                                    await sleep(3000);
+                                    console.log("Subscribing " + market + " " + channelName);
+                                    subscribeToChannel(channelName, market);
                                 }
                             });
                         } else {
                             // do nothing for now
                             console.log(topicName + " topic exists");
-                            console.log("Subscribing " + market);
-                            subscribeToChannel("ticker", market);
-                            subscribeToChannel("trades", market);
-                            marketSubscribeList.push(market);
+                            console.log("Subscribing " + market + " " + channelName);
+                            subscribeToChannel(channelName, market);
                         }
                     }
                 });
@@ -237,13 +169,40 @@ var connect = async function() {
 
         }
 
-        subscribeToMarketList();
+        subscribeToMarketChannels(marketPair);
         
     });
 };
 
-//Connect to FTX US websocket server
-connect();
+subscribeToMarketPair();
+
+/** 
+ * First check if the PubSub topic exists.  If not, create the topics
+ * Once the topics are in place, connect to the websocket service
+ * and publish messages
+ **/
+async function subscribeToMarketPair() {
+
+    if(marketPair === undefined || marketPair === "") {
+        console.error("market pair invalid");
+        process.exit(1);
+    }
+
+    // Subscribe to websocket
+    connect();
+
+}
+
+
+// formats topic name according to naming convention
+function formatTopicName(channel, market) {
+
+    market = market.replace("/","_");
+    var topicName = topicPrefix + channel.toLowerCase() + "_" + market.toLowerCase();
+    logMessage(topicName);
+    return topicName;
+}
+
 
 // Function to publish message to Pub/Sub topic
 async function publishMessage(data, topic) {
