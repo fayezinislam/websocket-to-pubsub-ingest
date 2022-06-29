@@ -162,13 +162,20 @@ connect();
 // execute external process
 function launchExternalProcess(marketPair) {
 
-    // marketPair [1]=ws-url [2]=topic-prefix [3]=debug
-    var command = "node subscribeToMarketPairChannels.js \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
-    console.log("Launching: " + command);
+    // arguments: [0]=marketPair [1]=ws-url [2]=topic-prefix [3]=debug
+
+    // Launch as a Node.js Process
+    // var command = "node subscribeToMarketPairChannels.js \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
+    
+    // Launch as a separate Docker container
+    var marketPairStr = marketPair.replace("/","-");
+    var command = "sudo docker run -d --rm --name market-pair-" + marketPairStr + " market-pair-channels \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
+    
+    console.log("Launching process: " + command);
     exec(command, (error, stdout, stderr) => {
       console.log(error, stdout, stderr)
     });
-
+    
 }
 
 //Function to get current timestamp in UTC
