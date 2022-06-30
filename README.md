@@ -119,6 +119,26 @@ sudo gcloud auth configure-docker us-central1-docker.pkg.dev
 sudo gcloud artifacts repositories list
 ```
 
+## Run as a MIG
+
+gcloud compute instance-templates create-with-container market-pair-btc-usd --container-image=us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --container-arg="BTC/USD" --container-arg="wss://ftx.us/ws/" --container-arg="projects/$PROJECT_NAME/topics/ftx_us_" --container-arg="false" 
+
+
+gcloud compute instance-templates create-with-container market-pair-btc-usd-it --project=ftx-streaming-demo --machine-type=e2-small --network-interface=network=default,network-tier=PREMIUM --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=633574541667-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/cloud-platform --container-image=us-central1-docker.pkg.dev/ftx-streaming-demo/marketfeed-images/market-pair-channels --container-restart-policy=always --container-arg=BTC/USD --container-arg=wss://ftx.us/ws/ --container-arg=projects/ftx-streaming-demo/topics/ftx_us_ --container-arg=false --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-btc-usd-it,image=projects/cos-cloud/global/images/cos-stable-97-16919-29-40,mode=rw,size=10,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --labels=container-vm=cos-stable-97-16919-29-40
+
+gcloud compute instance-groups managed create example-group \
+    --base-instance-name test \
+    --size 3 \
+    --template an-instance-template
+
+
+## Run in Cloud Run
+
+gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="BTC/USD","wss://ftx.us/ws/","projects/$PROJECT_NAME/topics/ftx_us_",false
+
+gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="'BTC/USD','wss://ftx.us/ws/','projects/$PROJECT_NAME/topics/ftx_us_',false"
+
+gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="BTC/USD","wss://ftx.us/ws/","projects/$PROJECT_NAME/topics/ftx_us_",false
 
 ## Run in Kubernetes
 

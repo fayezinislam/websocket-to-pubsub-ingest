@@ -168,9 +168,12 @@ function launchExternalProcess(marketPair) {
     // var command = "node subscribeToMarketPairChannels.js \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
     
     // Launch as a separate Docker container
-    var marketPairStr = marketPair.replace("/","-");
-    var command = "sudo docker run -d --rm --name market-pair-" + marketPairStr + " market-pair-channels \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
+    //var marketPairStr = marketPair.replace("/","-");
+    //var command = "sudo docker run -d --rm --name market-pair-" + marketPairStr + " market-pair-channels \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
     
+    // Launch as a separate MIG instance
+    var command = "";
+
     console.log("Launching process: " + command);
     exec(command, (error, stdout, stderr) => {
       console.log(error, stdout, stderr)
