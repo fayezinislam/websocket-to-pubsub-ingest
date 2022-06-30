@@ -172,7 +172,7 @@ function launchExternalProcess(marketPair) {
     //var command = "sudo docker run -d --rm --name market-pair-" + marketPairStr + " market-pair-channels \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
     
     // Launch as a separate MIG instance
-    var marketPairStr = marketPair.replace(marketPair,"/","-");
+    var marketPairStr = marketPair.replace("/","-").toLowerCase();
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
     var command = "gcloud compute instance-groups managed create " + igName + " --project=ftx-streaming-demo --base-instance-name=" + igName + " --size=1 --template=market-pair-instance-template --zone=us-central1-a && gcloud beta compute instance-groups managed set-autoscaling " + igName + " --project=ftx-streaming-demo --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9";
 
