@@ -16,10 +16,6 @@
 
 // Imports the Google Cloud client library
 import {PubSub} from "@google-cloud/pubsub";
-
-//Define destination topics
-const topic_destination = "projects/ftx-streaming-demo/topics/ftx_us_";
-
 // Creates a Pub/Sub API client; cache this for further use
 const pubSubClient = new PubSub();
 
@@ -28,27 +24,40 @@ var marketList = [];
 // An array of the subscribed market names 
 var marketSubscribeList = [];
 
-// command line arguments
-const clArgs = process.argv.slice(2);
-console.log(clArgs);
-
-// flag to output message
-var outputMessages = false;
-if(clArgs.length > 0 && clArgs[0] === "true") {
-    outputMessages = true;
-}
-
 //Creates a websocket API client
 import WebSocket from "websocket";
 var WebSocketClient = WebSocket.client;
-var wsReconnectInterval = 1000 * 5;
-
+var wsReconnectInterval = 1000 * 1;
 var client;
 
+// Runtime Arguments
+var wsUrl;
+var topicPrefix;
+var outputMessages = false; // flag to output messages to the console
+
+// Parse runtime arguments
+const clArgs = process.argv.slice(2);
+console.log(clArgs);
+
+// Usage:
+//   node index.js "wss://ftx.us/ws/" "projects/{project-name}/topics/ftx_us_" false
+if(clArgs.length != 3) {
+    console.error("Incorrect number of arguments. \nUsage: node index.js {ws-url} {topic-prefix} {debug}");
+} else {
+
+    wsUrl = clArgs[0];
+    topicPrefix = clArgs[1];
+    if(clArgs[2] === "true") {
+        outputMessages = true;
+    }
+}
+
+
+// Logic to connect and subscribe to WebSocket
 var connect = async function() { 
 
     client = new WebSocketClient();
-    client.connect('wss://ftx.us/ws/', null);
+    client.connect(wsUrl, null);
 
     //On connection failure log error to console
     client.on('connectFailed', function(error) {
@@ -73,8 +82,6 @@ var connect = async function() {
                 //Parse JSON message & add receive timestamp
                 var data = JSON.parse(message.utf8Data);
                 data.time_ws = getTimestamp();
-
-                //console.log(JSON.stringify(data))
 
                 // Checks market list data
                 if (data.channel === 'markets') {
@@ -165,10 +172,11 @@ var connect = async function() {
                     // check if topic, if not, then create
                     // just focus on one for now
                     //if(marketKey === "BTC/USD") { 
-                        console.log("Checking topic for " + marketKey);
-                        createPubSubTopic(formatTopicName("trades", marketKey),marketKey);
+                        await console.log("checking " + marketKey + " trades");
+                        createPubSubTopic(formatTopicName("trades", marketKey),marketKey,"trades");
                         await sleep(1000);
-                        createPubSubTopic(formatTopicName("ticker", marketKey),marketKey);
+                        await console.log("checking " + marketKey + " ticker");
+                        createPubSubTopic(formatTopicName("ticker", marketKey),marketKey,"ticker");
                         await sleep(1000);
                         marketList.push(marketKey);
                     //}
@@ -183,7 +191,7 @@ var connect = async function() {
         function formatTopicName(channel, market) {
 
             market = market.replace("/","_");
-            var topicName = topic_destination + channel.toLowerCase() + "_" + market.toLowerCase();
+            var topicName = topicPrefix + channel.toLowerCase() + "_" + market.toLowerCase();
             logMessage(topicName);
             return topicName;
         }
@@ -192,13 +200,13 @@ var connect = async function() {
         // Creates PubSub topic 
         // Once created, it will subscribe to the websocket using the market name
         // If topic already created, then it will just subscribe using the market name
-        async function createPubSubTopic(topicName, market) {
+        async function createPubSubTopic(topicName, market, channelName) {
 
             try {
                 var topic = pubSubClient.topic(topicName);
                 topic.exists(async (err, exists) => {
                     if (err) {
-                        console.error(`Error looking for specified topic ${topicName}: ${error}`);
+                        console.error(`Error looking for specified topic ${topicName}: ${err}`);
                         process.exit(1);
                     } else {
                         if (!exists) {
@@ -209,22 +217,18 @@ var connect = async function() {
                                     //process.exit(1);
                                 } else {
                                     console.error(`Created topic ${topicName}`);
-                                    //publishMessages();
                                     //console.log(JSON.stringify(apiResponse));
-                                    sleep(3000);
-                                    console.log("Subscribing " + market);
-                                    subscribeToChannel("ticker", market);
-                                    sleep(3000);
-                                    subscribeToChannel("trades", market);
+                                    await sleep(3000);
+                                    console.log("Subscribing " + market + " " + channelName);
+                                    subscribeToChannel(channelName, market);
                                     marketSubscribeList.push(market);
                                 }
                             });
                         } else {
-                            // do nothing for now
+                            // Already exists, just subscribe
                             console.log(topicName + " topic exists");
-                            console.log("Subscribing " + market);
-                            subscribeToChannel("ticker", market);
-                            subscribeToChannel("trades", market);
+                            console.log("Subscribing " + market + " " + channelName);
+                            subscribeToChannel(channelName, market);
                             marketSubscribeList.push(market);
                         }
                     }
