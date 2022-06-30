@@ -136,7 +136,7 @@ var connect = async function() {
                 var topic = pubSubClient.topic(topicName);
                 await topic.exists(async (err, exists) => {
                     if (err) {
-                        console.error(`Error looking for specified topic ${topicName}: ${error}`);
+                        console.error(`Error looking for specified topic ${topicName}: ${err}`);
                         process.exit(1);
                     } else {
                         if (!exists) {

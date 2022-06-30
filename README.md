@@ -14,10 +14,11 @@ This example uses the websocket service from FTX for market feed data.
 
 ```
 curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-sudo apt install nodejs -y
 node --version
 npm --version
 npm install
+npm install @google-cloud/pubsub
+npm install websocket
 ```
 
 
@@ -121,24 +122,96 @@ sudo gcloud artifacts repositories list
 
 ## Run as a MIG
 
-gcloud compute instance-templates create-with-container market-pair-btc-usd --container-image=us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --container-arg="BTC/USD" --container-arg="wss://ftx.us/ws/" --container-arg="projects/$PROJECT_NAME/topics/ftx_us_" --container-arg="false" 
+### Create an instance template
 
+ * Choose Ubuntu 20.04
+ * Set the startup script.  The startup script will parse the name of the VM to get the market pair
 
-gcloud compute instance-templates create-with-container market-pair-btc-usd-it --project=ftx-streaming-demo --machine-type=e2-small --network-interface=network=default,network-tier=PREMIUM --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=633574541667-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/cloud-platform --container-image=us-central1-docker.pkg.dev/ftx-streaming-demo/marketfeed-images/market-pair-channels --container-restart-policy=always --container-arg=BTC/USD --container-arg=wss://ftx.us/ws/ --container-arg=projects/ftx-streaming-demo/topics/ftx_us_ --container-arg=false --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-btc-usd-it,image=projects/cos-cloud/global/images/cos-stable-97-16919-29-40,mode=rw,size=10,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --labels=container-vm=cos-stable-97-16919-29-40
+#### Startup script
 
-gcloud compute instance-groups managed create example-group \
-    --base-instance-name test \
-    --size 3 \
-    --template an-instance-template
+```
+echo "Updating OS"
+sudo apt update -y
+sudo apt-get update -y
+sudo apt install curl -y
+
+echo "$PWD"
+
+# Install agents
+curl -sSO https://dl.google.com/cloudagents/add-logging-agent-repo.sh
+sudo bash add-logging-agent-repo.sh --also-install
+
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+sudo bash add-google-cloud-ops-agent-repo.sh --also-install
+
+export PROJECT_NAME=
+export WS_URL="wss://ftx.us/ws/"
+export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_us_"
+export DEBUG=false
+# Parse market pair from hostname
+export HOST_NAME=$HOSTNAME
+
+MARKET_PAIR_STR1=${HOST_NAME:21}
+MARKET_STR_SEARCH="-ig"
+MARKET_PAIR=${MARKET_PAIR_STR1%%$MARKET_STR_SEARCH*}
+MARKET_PAIR=${MARKET_PAIR/-/\/}
+export MARKET_PAIR=${MARKET_PAIR^^}
+
+echo "Variables: $HOST_NAME, $MARKET_PAIR, $PROJECT_NAME, $WS_URL, $TOPIC_PREFIX, $DEBUG"
+
+# Install Node.js
+echo "Installing Node.js"
+curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+sudo apt-get install -y nodejs
+node --version
+npm --version
+
+# Install program
+echo "Cloning repo"
+git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
+cd websocket-to-pubsub-ingest
+git checkout market-ticker-trades-split
+
+# Install libraries
+echo "Installing libraries"
+npm install
+npm install @google-cloud/pubsub
+npm install websocket
+
+# Launch program
+echo "Launching program"
+nohup node subscribeToMarketPairChannels.js $MARKET_PAIR $WS_URL $TOPIC_PREFIX $DEBUG > output.log 2>&1 &
+```
+
+#### Create instance template with gCloud Command 
+
+Substitute the following variable:
+ * --service-account
+
+```
+gcloud compute instance-templates create market-pair-instance-template --project=ftx-streaming-demo --machine-type=e2-medium --network-interface=network=default,network-tier=PREMIUM --metadata=^,@^startup-script=echo\ \"Updating\ OS\"$'\n'sudo\ apt\ update\ -y$'\n'sudo\ apt-get\ update\ -y$'\n'sudo\ apt\ install\ curl\ -y$'\n'$'\n'echo\ \"\$PWD\"$'\n'$'\n'\#\ Install\ agents$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-logging-agent-repo.sh$'\n'sudo\ bash\ add-logging-agent-repo.sh\ --also-install$'\n'$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh$'\n'sudo\ bash\ add-google-cloud-ops-agent-repo.sh\ --also-install$'\n'$'\n'export\ PROJECT_NAME=$'\n'export\ WS_URL=\"wss://ftx.us/ws/\"$'\n'export\ TOPIC_PREFIX=\"projects/\$PROJECT_NAME/topics/ftx_us_\"$'\n'export\ DEBUG=false$'\n'\#\ Parse\ market\ pair\ from\ hostname$'\n'export\ HOST_NAME=\$HOSTNAME$'\n'$'\n'MARKET_PAIR_STR1=\$\{HOST_NAME:21\}$'\n'MARKET_STR_SEARCH=\"-ig\"$'\n'MARKET_PAIR=\$\{MARKET_PAIR_STR1\%\%\$MARKET_STR_SEARCH\*\}$'\n'MARKET_PAIR=\$\{MARKET_PAIR/-/\\/\}$'\n'export\ MARKET_PAIR=\$\{MARKET_PAIR^^\}$'\n'$'\n'echo\ \"Variables:\ \$HOST_NAME,\ \$MARKET_PAIR,\ \$PROJECT_NAME,\ \$WS_URL,\ \$TOPIC_PREFIX,\ \$DEBUG\"$'\n'$'\n'\#\ Install\ Node.js$'\n'echo\ \"Installing\ Node.js\"$'\n'curl\ -fsSL\ https://deb.nodesource.com/setup_16.x\ \|\ sudo\ -E\ bash\ -$'\n'sudo\ apt-get\ install\ -y\ nodejs$'\n'node\ --version$'\n'npm\ --version$'\n'$'\n'\#\ Install\ program$'\n'echo\ \"Cloning\ repo\"$'\n'git\ clone\ https://github.com/fayezinislam/websocket-to-pubsub-ingest.git$'\n'cd\ websocket-to-pubsub-ingest$'\n'git\ checkout\ market-ticker-trades-split$'\n'$'\n'\#\ Install\ libraries$'\n'echo\ \"Installing\ libraries\"$'\n'npm\ install$'\n'npm\ install\ @google-cloud/pubsub$'\n'npm\ install\ websocket$'\n'$'\n'\#\ Launch\ program$'\n'echo\ \"Launching\ program\"$'\n'nohup\ node\ subscribeToMarketPairChannels.js\ \$MARKET_PAIR\ \$WS_URL\ \$TOPIC_PREFIX\ \$DEBUG\ \>\ outout.log\ 2\>\&1\ \&,@enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=xxxxxxxx-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute.readonly,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220615,mode=rw,size=10,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+```
+### Create the MIG
+
+The name of each instance group needs to have the market pair in the name.  Use a naming convention.
+
+ * subscribe-marketpair-btc-usd-ig
+
+Create the MIG
+```
+gcloud compute instance-groups managed create subscribe-marketpair-btc-usd-ig --project=ftx-streaming-demo --base-instance-name=subscribe-marketpair-btc-usd-ig --size=1 --template=market-pair-instance-template --zone=us-central1-a
+```
+
+Create the autoscaling attributes
+```
+gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair-btc-usd-ig --project=ftx-streaming-demo --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9
+```
+ 
 
 
 ## Run in Cloud Run
 
-gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="BTC/USD","wss://ftx.us/ws/","projects/$PROJECT_NAME/topics/ftx_us_",false
-
-gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="'BTC/USD','wss://ftx.us/ws/','projects/$PROJECT_NAME/topics/ftx_us_',false"
-
-gcloud run deploy market-pair-btc-usd --image us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels --region us-central1 --command "node subscribeToMarketPairChannels.js" --args="BTC/USD","wss://ftx.us/ws/","projects/$PROJECT_NAME/topics/ftx_us_",false
+Cloud Run is typically used for serving data through a webservice or API, so Cloud Run is not a good choice for a program like this.  
 
 ## Run in Kubernetes
 
