@@ -25,6 +25,12 @@ const {
   exec
 } = childProcess
 
+// Imports the Google Cloud client library
+import {InstanceGroupManagersClient} from "@google-cloud/compute";
+// Creates a GCP Compute API client; cache this for further use
+//const computeClient = new Compute();
+const computeMIGClient = new InstanceGroupManagersClient();
+
 // An array of the market names 
 var marketList = [];
 // An array of the subscribed market names 
@@ -40,7 +46,7 @@ var topicPrefix;
 // flag to output message
 var outputMessages = false;
 
-// node subscribeToMarketChannel.js "wss://ftx.us/ws/" "projects/ftx-streaming-demo/topics/ftx_us_" false
+// node subscribeToMarketChannel.js "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
 if(clArgs.length != 3) {
     console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {debug}");
 } else {
@@ -160,7 +166,7 @@ var connect = async function() {
 connect();
 
 // execute external process
-function launchExternalProcess(marketPair) {
+async function launchExternalProcess(marketPair) {
 
     // arguments: [0]=marketPair [1]=ws-url [2]=topic-prefix [3]=debug
 
@@ -172,6 +178,7 @@ function launchExternalProcess(marketPair) {
     //var command = "sudo docker run -d --rm --name market-pair-" + marketPairStr + " market-pair-channels \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
     
     // Launch as a separate MIG instance
+    /*
     var marketPairStr = marketPair.replace("/","-").toLowerCase();
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
     var command = "gcloud compute instance-groups managed create " + igName + " --project=ftx-streaming-demo --base-instance-name=" + igName + " --size=1 --template=market-pair-instance-template --zone=us-central1-a && gcloud beta compute instance-groups managed set-autoscaling " + igName + " --project=ftx-streaming-demo --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9";
@@ -180,6 +187,42 @@ function launchExternalProcess(marketPair) {
     exec(command, (error, stdout, stderr) => {
       console.log(error, stdout, stderr)
     });
+    */
+
+    // Use the Node.js gcloud SDK to create the MIG
+    var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
+    var zone = "us-central1-a";
+    var project = "ftx-streaming-demo";
+    var itName = "market-pair-instance-template";
+    var itNameUrl = "https://www.googleapis.com/compute/v1/projects/" + project + "/global/instanceTemplates/" + itName;
+    var marketPairStr = marketPair.replace("/","-").toLowerCase();
+    var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
+
+    console.log(
+      `Creating the ${igName} MIG in ${zone} from template ${itNameUrl}`
+    );
+
+    var igManagerResource = {};
+    igManagerResource.name = igName;
+    igManagerResource.baseInstanceName = igName;
+    igManagerResource.targetSize = 1;
+    igManagerResource.instanceTemplate = itNameUrl;
+
+    // Construct request
+    const request = {
+      "instanceGroupManagerResource": igManagerResource,
+      "project": project,
+      "zone": zone
+    };
+
+    //console.log(request);
+    //console.log(JSON.stringify(request));
+
+    // Run request
+    const response = await computeMIGClient.insert(request);
+    //console.log(response);
+    console.log('Create MIG request submitted.');
+
     
 }
 
