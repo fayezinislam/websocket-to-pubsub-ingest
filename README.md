@@ -337,6 +337,14 @@ Create the autoscaling attributes
 gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair-btc-usd-ig --project=ftx-streaming-demo --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9
 ```
  
+### Test
+
+ * Check if all MIGS have been created: [https://console.cloud.google.com/compute/instanceGroups/list](https://console.cloud.google.com/compute/instanceGroups/list)
+ * Check if all PubSub topics have been created: [https://console.cloud.google.com/cloudpubsub/topic/list](https://console.cloud.google.com/cloudpubsub/topic/list)
+ * Run the pulltop command to see if messages are getting published to the topic
+
+   `pulltop projects/$PROJECT_NAME/topics/ftx_us_ticker_btc_usd`
+   `pulltop projects/$PROJECT_NAME/topics/ftx_us_trades_btc_usd`
 
 
 ## Run in Cloud Run
