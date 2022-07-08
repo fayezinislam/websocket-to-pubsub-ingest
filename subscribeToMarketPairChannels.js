@@ -78,7 +78,7 @@ var connect = async function() {
                 data.time_ws = getTimestamp();
 
                 // publishes the data to the matching topic
-                if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker') && data.market === marketPair) { 
+                if (data.type === 'update' & (data.channel === 'trades' || data.channel === 'ticker' || data.channel === 'orderbook') && data.market === marketPair) { 
                     publishMessage(JSON.stringify(data), formatTopicName(data.channel, data.market));
                 }
 
@@ -109,6 +109,9 @@ var connect = async function() {
             await sleep(2000);
             await console.log("checking " + marketPair + " ticker");
             await createPubSubTopic(formatTopicName("ticker", marketPair),marketPair,"ticker");
+            await sleep(2000);
+            await console.log("checking " + marketPair + " orderbook");
+            await createPubSubTopic(formatTopicName("orderbook", marketPair),marketPair,"orderbook");
             await sleep(2000);
 
         }

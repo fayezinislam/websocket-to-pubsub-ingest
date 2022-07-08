@@ -64,7 +64,7 @@ var client;
 var connect = async function() { 
 
     client = new WebSocketClient();
-    client.connect('wss://ftx.us/ws/', null);
+    client.connect(wsUrl, null);
 
     //On connection failure log error to console
     client.on('connectFailed', function(error) {
