@@ -9,6 +9,11 @@ This example uses the websocket service from FTX for market feed data.
 - [Enable billing for your project](https://support.google.com/cloud/answer/6293499#enable-billing).
 - [Enable the Google Cloud Pub/Sub API](https://console.cloud.google.com/flows/enableapi?apiid=pubsub.googleapis.com&_ga=2.212587670.3275545.1654003980-1401993212.1652797137).
 - [Set up authentication with a service account so you can access the API from your local workstation](https://cloud.google.com/docs/authentication/getting-started).
+- Confirm service account has these roles or equivalent privileges:
+  * Cloud Pub/Sub Service Agent
+  * Compute Engine Service Agent
+  * Compute Instance Admin (v1)
+  * Compute Instance Admin (beta)
 
 ## Installing required libraries
 
@@ -48,7 +53,7 @@ subscribeToMarketPairChannels.js {market-pair} {websocket-url} {topic-prefix} {d
 If launching the sub-processes for each market pair with docker, first build Docker container `market-pair-channels` using instructions below.  This will launch the market-pair-channels container for each market pair.  If launching with node.js process, it will spin off subscribeToMarketPairChannels.js directly.
 
 ```
-node subscribeToMarketChannel.js "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+node subscribeToMarketChannel.js "$PROJECT_NAME" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
 ```
 ```
 node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
@@ -174,11 +179,13 @@ EOF
 sudo service google-fluentd restart
 
 export PROJECT_NAME=$(gcloud config list --format 'value(core.project)')
-export WS_URL="wss://ftx.us/ws/"
-export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_us_"
+export ZONE=asia-northeast1-b
+export MKT_PAIR_INSTANCE_TEMPLATE=market-pair-instance-template
+export WS_URL="wss://ftx.com/ws/"
+export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_com_"
 export DEBUG=false
 
-echo "Variables: $HOST_NAME, $PROJECT_NAME, $WS_URL, $TOPIC_PREFIX, $DEBUG"
+echo "Variables: $HOST_NAME, $PROJECT_NAME, $ZONE, $MKT_PAIR_INSTANCE_TEMPLATE, $WS_URL, $TOPIC_PREFIX, $DEBUG"
 
 # Install Node.js
 echo "Installing Node.js"
@@ -202,7 +209,7 @@ npm install websocket
 
 # Launch program
 echo "Launching program"
-nohup node subscribeToMarketChannel.js $WS_URL $TOPIC_PREFIX $DEBUG > output.log 2>&1 &
+nohup node subscribeToMarketChannel.js $PROJECT_NAME $ZONE $MKT_PAIR_INSTANCE_TEMPLATE $WS_URL $TOPIC_PREFIX $DEBUG > output.log 2>&1 &
 ```
 
 #### Create the `market-list-instance-template` instance template 

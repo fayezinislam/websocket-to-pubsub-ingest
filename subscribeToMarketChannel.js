@@ -45,15 +45,21 @@ var wsUrl;
 var topicPrefix;
 // flag to output message
 var outputMessages = false;
+var project = "ftx-streaming-demo";
+var zone = "us-central1-a";
+var itName = "market-pair-instance-template";
 
-// node subscribeToMarketChannel.js "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
-if(clArgs.length != 3) {
+// node subscribeToMarketChannel.js "ftx-streaming-demo" "us-central1-a" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+if(clArgs.length != 6) {
     console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {debug}");
 } else {
 
-    wsUrl = clArgs[0];
-    topicPrefix = clArgs[1];
-    if(clArgs[2] === "true") {
+    project = clArgs[0];
+    zone = clArgs[1];
+    itName = clArgs[2];
+    wsUrl = clArgs[3];
+    topicPrefix = clArgs[4];
+    if(clArgs[5] === "true") {
         outputMessages = true;
     }
 }
@@ -191,9 +197,9 @@ async function launchExternalProcess(marketPair) {
 
     // Use the Node.js gcloud SDK to create the MIG
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
-    var zone = "us-central1-a";
-    var project = "ftx-streaming-demo";
-    var itName = "market-pair-instance-template";
+    //var zone = "us-central1-a";
+    //var project = "ftx-streaming-demo";
+    //var itName = "market-pair-instance-template";
     var itNameUrl = "https://www.googleapis.com/compute/v1/projects/" + project + "/global/instanceTemplates/" + itName;
     var marketPairStr = marketPair.replace("/","-").toLowerCase();
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
