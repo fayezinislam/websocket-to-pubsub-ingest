@@ -45,11 +45,11 @@ var wsUrl;
 var topicPrefix;
 // flag to output message
 var outputMessages = false;
-var project = "ftx-streaming-demo";
-var zone = "us-central1-a";
-var itName = "market-pair-instance-template";
+var project;
+var zone;
+var itName;
 
-// node subscribeToMarketChannel.js "ftx-streaming-demo" "us-central1-a" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+// node subscribeToMarketChannel.js "ftx-com-streaming-demo" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
 if(clArgs.length != 6) {
     console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {debug}");
 } else {
