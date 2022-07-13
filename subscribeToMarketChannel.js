@@ -48,10 +48,11 @@ var outputMessages = false;
 var project;
 var zone;
 var itName;
+var marketPairLimit;
 
-// node subscribeToMarketChannel.js "ftx-com-streaming-demo" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
-if(clArgs.length != 6) {
-    console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {debug}");
+// node subscribeToMarketChannel.js "ftx-com-streaming-demo" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" 5 false
+if(clArgs.length != 7) {
+    console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {market-pair-limit} {debug}");
 } else {
 
     project = clArgs[0];
@@ -59,7 +60,8 @@ if(clArgs.length != 6) {
     itName = clArgs[2];
     wsUrl = clArgs[3];
     topicPrefix = clArgs[4];
-    if(clArgs[5] === "true") {
+    marketPairLimit = clArgs[5];
+    if(clArgs[6] === "true") {
         outputMessages = true;
     }
 }
@@ -149,6 +151,7 @@ var connect = async function() {
             if(marketListData == null || marketListData.data == null || marketListData.data.data == null) 
                 return;
 
+            var marketPairCounter = 0;
             for (const marketKey in marketListData.data.data) {
                 console.log("Checking " + marketKey);
                 if(!marketList.includes(marketKey)) {
@@ -156,8 +159,17 @@ var connect = async function() {
                     console.log("Starting process for " + marketKey);
                     await sleep(1000);
                     // launch process here
-                    launchExternalProcess(marketKey);
-                    marketList.push(marketKey);
+                    // Gets market pairs up to marketPairLimit parameter
+                    if(marketPairLimit > 0 && marketPairCounter < marketPairLimit) {
+                        launchExternalProcess(marketKey);
+                        marketList.push(marketKey);
+                    } else if(marketPairCounter <= 0) {
+                        // no limit
+                        launchExternalProcess(marketKey);
+                        marketList.push(marketKey);
+                    }
+                    marketPairCounter++;
+                    
                 }
             }
             console.log("Processes started for all market data");
@@ -196,10 +208,6 @@ async function launchExternalProcess(marketPair) {
     */
 
     // Use the Node.js gcloud SDK to create the MIG
-    var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
-    //var zone = "us-central1-a";
-    //var project = "ftx-streaming-demo";
-    //var itName = "market-pair-instance-template";
     var itNameUrl = "https://www.googleapis.com/compute/v1/projects/" + project + "/global/instanceTemplates/" + itName;
     var marketPairStr = marketPair.replace("/","-").toLowerCase();
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
@@ -226,8 +234,8 @@ async function launchExternalProcess(marketPair) {
 
     // Run request
     const response = await computeMIGClient.insert(request);
-    //console.log(response);
     console.log('Create MIG request submitted.');
+    logMessage(response);
 
     
 }

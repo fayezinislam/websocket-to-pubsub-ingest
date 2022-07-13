@@ -23,13 +23,14 @@ node --version
 npm --version
 npm install
 npm install @google-cloud/pubsub
+npm install @google-cloud/compute
 npm install websocket
 ```
 
 
 ## Usage
 
-subscribeToMarketChannel.js {websocket-url} {topic-prefix} {debug}
+subscribeToMarketChannel.js {project-name} {zone} {template-name} {websocket-url} {topic-prefix} {market-pair-list-limit} {debug}
  - Connects to the websocket service
  - Subscribes to the market feed
  - Retrieves list of market pairs
@@ -53,10 +54,10 @@ subscribeToMarketPairChannels.js {market-pair} {websocket-url} {topic-prefix} {d
 If launching the sub-processes for each market pair with docker, first build Docker container `market-pair-channels` using instructions below.  This will launch the market-pair-channels container for each market pair.  If launching with node.js process, it will spin off subscribeToMarketPairChannels.js directly.
 
 ```
-node subscribeToMarketChannel.js "$PROJECT_NAME" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+node subscribeToMarketChannel.js "$PROJECT_NAME" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" -1 false
 ```
 ```
-node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" false
 ```
 
 ## Containerization
@@ -183,9 +184,10 @@ export ZONE=asia-northeast1-b
 export MKT_PAIR_INSTANCE_TEMPLATE=market-pair-instance-template
 export WS_URL="wss://ftx.com/ws/"
 export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_com_"
+export MKT_PAIR_LIST_LIMIT=5
 export DEBUG=false
 
-echo "Variables: $HOST_NAME, $PROJECT_NAME, $ZONE, $MKT_PAIR_INSTANCE_TEMPLATE, $WS_URL, $TOPIC_PREFIX, $DEBUG"
+echo "Variables: $HOST_NAME, $PROJECT_NAME, $ZONE, $MKT_PAIR_INSTANCE_TEMPLATE, $WS_URL, $TOPIC_PREFIX, $MKT_PAIR_LIST_LIMIT, $DEBUG"
 
 # Install Node.js
 echo "Installing Node.js"
@@ -209,7 +211,7 @@ npm install websocket
 
 # Launch program
 echo "Launching program"
-nohup node subscribeToMarketChannel.js $PROJECT_NAME $ZONE $MKT_PAIR_INSTANCE_TEMPLATE $WS_URL $TOPIC_PREFIX $DEBUG > output.log 2>&1 &
+nohup node subscribeToMarketChannel.js $PROJECT_NAME $ZONE $MKT_PAIR_INSTANCE_TEMPLATE $WS_URL $TOPIC_PREFIX $MKT_PAIR_LIST_LIMIT $DEBUG > output.log 2>&1 &
 ```
 
 #### Create the `market-list-instance-template` instance template 
