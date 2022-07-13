@@ -14,6 +14,10 @@ This example uses the websocket service from FTX for market feed data.
   * Compute Engine Service Agent
   * Compute Instance Admin (v1)
   * Compute Instance Admin (beta)
+  * Service Account User
+
+  https://cloud.google.com/iam/docs/impersonating-service-accounts#impersonate-sa-level
+
 
 ## Installing required libraries
 
