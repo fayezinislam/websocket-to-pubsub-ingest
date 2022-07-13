@@ -156,15 +156,18 @@ var connect = async function() {
                 console.log("Checking " + marketKey);
                 if(!marketList.includes(marketKey)) {
 
-                    console.log("Starting process for " + marketKey);
-                    await sleep(1000);
+                    
                     // launch process here
                     // Gets market pairs up to marketPairLimit parameter
                     if(marketPairLimit > 0 && marketPairCounter < marketPairLimit) {
+                        console.log("Starting process for " + marketKey);
+                        await sleep(1000);
                         launchExternalProcess(marketKey);
                         marketList.push(marketKey);
                     } else if(marketPairCounter <= 0) {
                         // no limit
+                        console.log("Starting process for " + marketKey);
+                        await sleep(1000);
                         launchExternalProcess(marketKey);
                         marketList.push(marketKey);
                     }
@@ -172,7 +175,7 @@ var connect = async function() {
                     
                 }
             }
-            console.log("Processes started for all market data");
+            console.log("Processes started for " + marketPairCounter + " market pairs");
         }
 
         subscribeToMarketList();
