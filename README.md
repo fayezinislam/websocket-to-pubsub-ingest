@@ -3,6 +3,24 @@ The websocket-to-pubsub-ingest adapter provides an easy way to ingest websocket 
 
 This example uses the websocket service from FTX for market feed data.
 
+## How it works
+
+There are 2 components, a `market list` component and a `market pair` component.  
+
+<Diagram here>
+
+ * marketlist - The `market list` component will connect to the websocket, subscribe to the market channel, and retrieve a list of market pairs.  For each market pair, it will launch a `market pair` component.  It will remain connected to the websocket.  When a new market pair comes on line, it will notice it and launch a `market pair` component for the new pair.
+   * Components
+     * Script: startup script and subscribeToMarketChannel.js
+     * Instance template: `market-list-instance-template`
+     * Instance group: subscribe-marketlist-ig
+
+ * marketpair - One `market pair` component is launched per market pair.  It will connect to the websocket, subscribe to the ticker, trades and orderbook channels for that marketpair, and then publish each message to a matching PubSub topic. If the topic does not exist for the market pair and channel, it will create one before publishing to it.  
+   * Components
+     * Script: startup script and subscribeToMarketPairChannels.js
+     * Instance template: `market-pair-instance-template`
+     * Instance group: subscribe-marketpair-{market-pair}-ig (example: subscribe-marketpair-btc-usd-ig)
+
 ## Before you begin
 
 - [Select or create a Cloud Platform project](https://console.cloud.google.com/project?_ga=2.220968858.3275545.1654003980-1401993212.1652797137).
@@ -17,6 +35,13 @@ This example uses the websocket service from FTX for market feed data.
   * Service Account User
 
   https://cloud.google.com/iam/docs/impersonating-service-accounts#impersonate-sa-level
+
+- Check on project quotas.  Due to the number of market pair instances that could be created, be aware of the following quotas which could prevent all of the components from being created.  There should be enough allocated to accomodate as many market pairs you want to support. 
+  * Compute Engine API
+    * In-use IP addresses
+    * CPUs
+    * Backend services
+    * Managed instance groups
 
 
 ## Installing required libraries
@@ -42,7 +67,7 @@ subscribeToMarketChannel.js {project-name} {zone} {template-name} {websocket-url
    - There are several options to how the separate process is launched
      - Separate nodejs process
      - Docker container
-     - Kubernetes pod
+     - MIG
      - See the function launchExternalProcess() for more details
 
 subscribeToMarketPairChannels.js {market-pair} {websocket-url} {topic-prefix} {debug}
@@ -136,13 +161,13 @@ sudo gcloud artifacts repositories list
 
  * Choose Ubuntu 20.04
  * Create 2 instance templates:
-   * market-list-instance-template
-   * market-pair-instance-template 
+   * market-list-instance-template - this will retrieve all market pairs (or first N market pairs)
+   * market-pair-instance-template - this will launch one market pair MIG
  * Set the startup script for the appropriate instance temple.  The startup script will parse the name of the VM to get the market pair
 
 
 #### Startup script for `market-list-instance-template`
-
+When manually creating `market-list-instance-template`, use this startup script.  Set the variables to match your environment (project, zone, topic prefix, number of pairs, etc)
 ```
 echo "Updating OS"
 sudo apt update -y
@@ -235,7 +260,7 @@ gcloud compute instance-templates create market-list-instance-template --project
 
 
 #### Startup script for `market-pair-instance-template`
-
+Set the variables to match your environment (project, topic prefix, url, etc)
 ```
 echo "Updating OS"
 sudo apt update -y
