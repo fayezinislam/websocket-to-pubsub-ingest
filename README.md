@@ -181,7 +181,10 @@ gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair
 ### Test
 
  * Check logs in the market list VM
-   * ssh into the market list VM.  The path for the log file is `/var/marketfeed/websocket-to-pubsub-ingest/output.log`
+   * ssh into the market list VM.  The path for the log file is 
+```
+/var/marketfeed/websocket-to-pubsub-ingest/output.log
+```
  * Check if all MIGS have been created: [https://console.cloud.google.com/compute/instanceGroups/list](https://console.cloud.google.com/compute/instanceGroups/list)
  * Check if all PubSub topics have been created: [https://console.cloud.google.com/cloudpubsub/topic/list](https://console.cloud.google.com/cloudpubsub/topic/list)
  * Run the pulltop command to see if messages are getting published to the topic
