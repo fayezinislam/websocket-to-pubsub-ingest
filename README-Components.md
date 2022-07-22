@@ -1,7 +1,6 @@
 # websocket-to-pubsub-ingest
 The websocket-to-pubsub-ingest adapter provides an easy way to ingest websocket streaming data into Pub/Sub topics in Google Cloud. 
 
-This example uses the websocket service from FTX for market feed data.
 
 ## How it works
 
@@ -85,13 +84,13 @@ docker images
 ### Run in foreground mode
 ```
 export PROJECT_NAME={project-name}
-docker run --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+docker run --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" false
 ```
 
 ### Run in background mode
 ```
 export PROJECT_NAME={project-name}
-docker run -d --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
+docker run -d --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" false
 ```
 
 ### Docker commands

@@ -30,7 +30,7 @@ var marketPair;
 var wsUrl;
 var topicPrefix;
 var outputMessages = false;
-// node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.us/ws/" "projects/ftx-streaming-demo/topics/ftx_us_" false
+// node subscribeToMarketPairChannels.js $MKT_PAIR $WS_URL $TOPIC_PREFIX $DEBUG
 if(clArgs.length != 4) {
     console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketPairChannels.js {marketpair} {ws-url} {topic-prefix} {debug}");
 } else {
@@ -157,7 +157,7 @@ var connect = async function() {
                                 }
                             });
                         } else {
-                            // do nothing for now
+                            // topic already exists, subscribe to channel
                             console.log(topicName + " topic exists");
                             console.log("Subscribing " + market + " " + channelName);
                             subscribeToChannel(channelName, market);

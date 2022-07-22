@@ -4,9 +4,13 @@ The websocket-to-pubsub-ingest adapter provides an easy way to ingest websocket 
 
 ## How it works
 
-There are 2 components, a `market list` component and a `market pair` component.  
+The goal is split the original websocket stream and send the messages to PubSub topics.  In the diagram below, this project is the part that is highlighted in the green box.
 
-<Diagram here>
+![Market Data Delivery diagram](images/market-data-delivery.png)
+
+There are 2 components, a `market list` component and a `market pair` component.  These components are deployed as MIGs.  A MIG is a managed instance group, which is a VM with extra configuration around it.
+
+![Market Data Delivery diagram](images/market-data-relay.png)
 
  * marketlist - The `market list` component will connect to the websocket, subscribe to the market channel, and retrieve a list of market pairs.  For each market pair, it will launch a `market pair` component.  It will remain connected to the websocket.  When a new market pair comes on line, it will notice it and launch a `market pair` component for the new pair.
    * Components
@@ -22,9 +26,9 @@ There are 2 components, a `market list` component and a `market pair` component.
 
 ## Before you begin
 
-- [Select or create a Cloud Platform project](https://console.cloud.google.com/project?_ga=2.220968858.3275545.1654003980-1401993212.1652797137).
+- [Select or create a Cloud Platform project](https://console.cloud.google.com/project).
 - [Enable billing for your project](https://support.google.com/cloud/answer/6293499#enable-billing).
-- [Enable the Google Cloud Pub/Sub API](https://console.cloud.google.com/flows/enableapi?apiid=pubsub.googleapis.com&_ga=2.212587670.3275545.1654003980-1401993212.1652797137).
+- [Enable the Google Cloud Pub/Sub API](https://console.cloud.google.com/flows/enableapi?apiid=pubsub.googleapis.com).
 - [Set up authentication with a service account so you can access the API from your local workstation](https://cloud.google.com/docs/authentication/getting-started).
 - Confirm service account has these roles or equivalent privileges:
   * Cloud Pub/Sub Service Agent
@@ -44,95 +48,148 @@ There are 2 components, a `market list` component and a `market pair` component.
 
 
 
-## Run as a MIG
+## Run as MIG Setup
 
-A MIG is created from an instance template.  Do the following to create the two instance templates, one for `market list` and one for `market pair`
+Do the following steps to setup the components
 
-### Create instance templates (manual)
-
- * Choose Ubuntu 20.04
- * Create 2 instance templates:
-   * market-list-instance-template - this will retrieve all market pairs (or first N market pairs)
-   * market-pair-instance-template - this will launch one market pair MIG
- * Set the startup script for the appropriate instance temple.  The startup script will parse the name of the VM to get the market pair
+1) Create `market list` instance template
+2) Create `market pair` instance template
+3) Create `market list` instance group
 
 
-#### Startup script for `market-list-instance-template`
-When manually creating `market-list-instance-template`, use this [startup script](market-list-instance-template-startup.sh).  Set the variables to match your environment (project, zone, topic prefix, number of pairs, etc)
+### 1) Create `market list` instance template
+
+Do the following steps to deploy the market list instance template
+
+####  1a) Customize the startup script
+
+Open the [startup script](startup-scripts/market-list-instance-template-startup.sh).  Set the variables to match your environment.
+
+ * ZONE - zone to deploy the MIGs to
+ * MKT_PAIR_INSTANCE_TEMPLATE - instance template for market pairs: market-pair-instance-template
+ * WS_URL - websocket url
+ * TOPIC_PREFIX - full prefix for topic names
+ * MKT_PAIR_LIST_LIMIT - Gets first n pairs from the list.  Or use -1 for all
+ * DEBUG - output extra debug messages
 
 
-#### Create the `market-list-instance-template` instance template 
+#### 1b) Create the `market-list-instance-template` instance template 
 
-Create the instance template with the gCloud commands below or through the [console](https://cloud.google.com/compute/docs/instance-templates/create-instance-templates#console)
+Create the instance template using the gCloud command below.  Note that this will reference the startup script from the previous step. (Note that this can also be done manually through the [console](https://cloud.google.com/compute/docs/instance-templates/create-instance-templates#console)
 
-Substitute the following variables:
- * --service-account
- * --project
- * ZONE
- * WS_URL
-
-```
-gcloud compute instance-templates create market-list-instance-template --project=xxxx --machine-type=e2-standard-4 --network-interface=network=default,network-tier=PREMIUM --metadata=^,@^startup-script=echo\ \"Updating\ OS\"$'\n'sudo\ apt\ update\ -y$'\n'sudo\ apt-get\ update\ -y$'\n'sudo\ apt\ install\ curl\ -y$'\n'$'\n'echo\ \"\$PWD\"$'\n'mkdir\ /var/marketfeed$'\n'chmod\ 777\ /var/marketfeed$'\n'cd\ /var/marketfeed$'\n'$'\n'\#\ Install\ agents$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-logging-agent-repo.sh$'\n'sudo\ bash\ add-logging-agent-repo.sh\ --also-install$'\n'$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh$'\n'sudo\ bash\ add-google-cloud-ops-agent-repo.sh\ --also-install$'\n'$'\n'\#\ Update\ log\ settings\ to\ get\ the\ output\ of\ the\ process\ to\ Cloud\ Logging$'\n'sudo\ tee\ /etc/google-fluentd/config.d/subscribeToMarketChannel.conf\ \<\<EOF$'\n'\<source\>$'\n'\ \ \ \ @type\ tail$'\n'\ \ \ \ \<parse\>$'\n'\ \ \ \ \ \ \ \ \#\ \'none\'\ indicates\ the\ log\ is\ unstructured\ \(text\).$'\n'\ \ \ \ \ \ \ \ @type\ none$'\n'\ \ \ \ \</parse\>$'\n'\ \ \ \ \#\ The\ path\ of\ the\ log\ file.$'\n'\ \ \ \ path\ /var/marketfeed/websocket-to-pubsub-ingest/output.log$'\n'\ \ \ \ \#\ The\ path\ of\ the\ position\ file\ that\ records\ where\ in\ the\ log\ file$'\n'\ \ \ \ \#\ we\ have\ processed\ already.\ This\ is\ useful\ when\ the\ agent$'\n'\ \ \ \ \#\ restarts.$'\n'\ \ \ \ pos_file\ /var/lib/google-fluentd/pos/subscribeToMarketChannel-log.pos$'\n'\ \ \ \ read_from_head\ true$'\n'\ \ \ \ \#\ The\ log\ tag\ for\ this\ log\ input.$'\n'\ \ \ \ tag\ unstructured-log$'\n'\</source\>$'\n'EOF$'\n'$'\n'sudo\ service\ google-fluentd\ restart$'\n'$'\n'export\ PROJECT_NAME=\$\(gcloud\ config\ list\ --format\ \'value\(core.project\)\'\)$'\n'export\ ZONE=asia-northeast1-b$'\n'export\ MKT_PAIR_INSTANCE_TEMPLATE=market-pair-instance-template$'\n'export\ WS_URL=\"wss://ftx.com/ws/\"$'\n'export\ TOPIC_PREFIX=\"projects/\$PROJECT_NAME/topics/ftx_com_\"$'\n'export\ DEBUG=false$'\n'$'\n'echo\ \"Variables:\ \$HOST_NAME,\ \$PROJECT_NAME,\ \$ZONE,\ \$MKT_PAIR_INSTANCE_TEMPLATE,\ \$WS_URL,\ \$TOPIC_PREFIX,\ \$DEBUG\"$'\n'$'\n'\#\ Install\ Node.js$'\n'echo\ \"Installing\ Node.js\"$'\n'curl\ -fsSL\ https://deb.nodesource.com/setup_16.x\ \|\ sudo\ -E\ bash\ -$'\n'sudo\ apt-get\ install\ -y\ nodejs$'\n'node\ --version$'\n'npm\ --version$'\n'$'\n'\#\ Install\ program$'\n'echo\ \"Cloning\ repo\"$'\n'git\ clone\ https://github.com/fayezinislam/websocket-to-pubsub-ingest.git$'\n'cd\ websocket-to-pubsub-ingest$'\n'git\ checkout\ market-ticker-trades-split$'\n'$'\n'\#\ Install\ libraries$'\n'echo\ \"Installing\ libraries\"$'\n'npm\ install$'\n'npm\ install\ @google-cloud/pubsub$'\n'npm\ install\ @google-cloud/compute$'\n'npm\ install\ websocket$'\n'$'\n'\#\ Launch\ program$'\n'echo\ \"Launching\ program\"$'\n'nohup\ node\ subscribeToMarketChannel.js\ \$PROJECT_NAME\ \$ZONE\ \$MKT_PAIR_INSTANCE_TEMPLATE\ \$WS_URL\ \$TOPIC_PREFIX\ \$DEBUG\ \>\ output.log\ 2\>\&1\ \&$'\n',@enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=xxxxxx-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/cloud-platform --create-disk=auto-delete=yes,boot=yes,device-name=market-list-instance-template2,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220705,mode=rw,size=50,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
-```
-
-
-
-#### Startup script for `market-pair-instance-template`
-
-Here is the [startup script](market-pair-instance-template-startup.sh), set the variables to match your environment (project, topic prefix, url, etc)
-
-
-
-#### Create the `market-pair-instance-template` instance template with gCloud Command 
-
-Substitute the following variable:
- * --service-account
- * --project
+Before running the gcloud command, set the following environment variables:
+ * PROJECT_NAME - service account to use
+ * ZONE - zone to deploy the MIGs to
+ * MACHINE_TYPE - VM shape to use
+ * SERVICE_ACCOUNT - service account that the VM runs with (see IAM for default compute engine SA)
 
 ```
-gcloud compute instance-templates create market-pair-instance-template --project=xxxxxxx --machine-type=e2-standard-4 --network-interface=network=default,network-tier=PREMIUM --metadata=^,@^startup-script=echo\ \"Updating\ OS\"$'\n'sudo\ apt\ update\ -y$'\n'sudo\ apt-get\ update\ -y$'\n'sudo\ apt\ install\ curl\ -y$'\n'$'\n'echo\ \"\$PWD\"$'\n'mkdir\ /var/marketfeed$'\n'chmod\ 777\ /var/marketfeed$'\n'cd\ /var/marketfeed$'\n'$'\n'\#\ Install\ agents$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-logging-agent-repo.sh$'\n'sudo\ bash\ add-logging-agent-repo.sh\ --also-install$'\n'$'\n'curl\ -sSO\ https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh$'\n'sudo\ bash\ add-google-cloud-ops-agent-repo.sh\ --also-install$'\n'$'\n'\#\ Update\ log\ settings\ to\ get\ the\ output\ of\ the\ process\ to\ Cloud\ Logging$'\n'sudo\ tee\ /etc/google-fluentd/config.d/subscribeToMarketPairChannels.conf\ \<\<EOF$'\n'\<source\>$'\n'\ \ \ \ @type\ tail$'\n'\ \ \ \ \<parse\>$'\n'\ \ \ \ \ \ \ \ \#\ \'none\'\ indicates\ the\ log\ is\ unstructured\ \(text\).$'\n'\ \ \ \ \ \ \ \ @type\ none$'\n'\ \ \ \ \</parse\>$'\n'\ \ \ \ \#\ The\ path\ of\ the\ log\ file.$'\n'\ \ \ \ path\ /var/marketfeed/websocket-to-pubsub-ingest/output.log$'\n'\ \ \ \ \#\ The\ path\ of\ the\ position\ file\ that\ records\ where\ in\ the\ log\ file$'\n'\ \ \ \ \#\ we\ have\ processed\ already.\ This\ is\ useful\ when\ the\ agent$'\n'\ \ \ \ \#\ restarts.$'\n'\ \ \ \ pos_file\ /var/lib/google-fluentd/pos/subscribeToMarketPairChannels-log.pos$'\n'\ \ \ \ read_from_head\ true$'\n'\ \ \ \ \#\ The\ log\ tag\ for\ this\ log\ input.$'\n'\ \ \ \ tag\ unstructured-log$'\n'\</source\>$'\n'EOF$'\n'$'\n'sudo\ service\ google-fluentd\ restart$'\n'$'\n'export\ PROJECT_NAME=\$\(gcloud\ config\ list\ --format\ \'value\(core.project\)\'\)$'\n'export\ WS_URL=\"wss://ftx.us/ws/\"$'\n'export\ TOPIC_PREFIX=\"projects/\$PROJECT_NAME/topics/ftx_us_\"$'\n'export\ DEBUG=false$'\n'\#\ Parse\ market\ pair\ from\ hostname$'\n'export\ HOST_NAME=\$HOSTNAME$'\n'$'\n'MARKET_PAIR_STR1=\$\{HOST_NAME:21\}$'\n'MARKET_STR_SEARCH=\"-ig\"$'\n'MARKET_PAIR=\$\{MARKET_PAIR_STR1\%\%\$MARKET_STR_SEARCH\*\}$'\n'MARKET_PAIR=\$\{MARKET_PAIR/-/\\/\}$'\n'export\ MARKET_PAIR=\$\{MARKET_PAIR^^\}$'\n'$'\n'echo\ \"Variables:\ \$HOST_NAME,\ \$MARKET_PAIR,\ \$PROJECT_NAME,\ \$WS_URL,\ \$TOPIC_PREFIX,\ \$DEBUG\"$'\n'$'\n'\#\ Install\ Node.js$'\n'echo\ \"Installing\ Node.js\"$'\n'curl\ -fsSL\ https://deb.nodesource.com/setup_16.x\ \|\ sudo\ -E\ bash\ -$'\n'sudo\ apt-get\ install\ -y\ nodejs$'\n'node\ --version$'\n'npm\ --version$'\n'$'\n'\#\ Install\ program$'\n'echo\ \"Cloning\ repo\"$'\n'git\ clone\ https://github.com/fayezinislam/websocket-to-pubsub-ingest.git$'\n'cd\ websocket-to-pubsub-ingest$'\n'git\ checkout\ market-ticker-trades-split$'\n'$'\n'\#\ Install\ libraries$'\n'echo\ \"Installing\ libraries\"$'\n'npm\ install$'\n'npm\ install\ @google-cloud/pubsub$'\n'npm\ install\ websocket$'\n'$'\n'\#\ Launch\ program$'\n'echo\ \"Launching\ program\"$'\n'nohup\ node\ subscribeToMarketPairChannels.js\ \$MARKET_PAIR\ \$WS_URL\ \$TOPIC_PREFIX\ \$DEBUG\ \>\ output.log\ 2\>\&1\ \&$'\n',@enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=xxxxxxx-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute.readonly,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220615,mode=rw,size=10,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+export PROJECT_NAME=xxxxxx
+export ZONE=us-central1-a
+export MACHINE_TYPE=e2-small
+export SERVICE_ACCOUNT=xxxxxxxx-compute@developer.gserviceaccount.com
+
+gcloud compute instance-templates create market-list-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-list-instance-template-startup.sh,enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-list-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+
 ```
 
 
-### Create the MIG
 
-The name of each instance group needs to have the market pair in the name.  Use a naming convention.  Use the gcloud commands below or the [console](https://cloud.google.com/compute/docs/instance-groups/create-zonal-mig#console)
+### 2) Create `market pair` instance template
 
- * subscribe-marketlist-ig
+Do the following steps to deploy the market pair instance template
+
+####  2a) Customize the startup script
+
+Open the [startup script](startup-scripts/market-pair-instance-template-startup.sh).  Set the variables to match your environment.
+
+ * WS_URL - websocket url
+ * TOPIC_PREFIX - full prefix for topic names
+ * DEBUG - output extra debug messages
+
+
+#### 2b) Create the `market-pair-instance-template` instance template 
+
+Create the instance template using the gCloud command below.  Note that this will reference the startup script from the previous step. (Note that this can also be done manually through the [console](https://cloud.google.com/compute/docs/instance-templates/create-instance-templates#console)
+
+Before running the gcloud command, set the following environment variables:
+ * PROJECT_NAME - service account to use
+ * ZONE - zone to deploy the MIGs to
+ * MACHINE_TYPE - VM shape to use
+ * SERVICE_ACCOUNT - service account that the VM runs with (see IAM for default compute engine SA)
+
+```
+export PROJECT_NAME=xxxxxx
+export ZONE=us-central1-a
+export MACHINE_TYPE=e2-small
+export SERVICE_ACCOUNT=xxxxxxxx-compute@developer.gserviceaccount.com
+
+gcloud compute instance-templates create market-pair-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-pair-instance-template-startup.sh,enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+
+```
+
+
+### 3) Create the `market list` MIG
+
+THe following commands will create the `market list` MIG.  Once the `market list` MIG is created, it will launch the process that will retrieve the list of market pairs, and then create a new MIG for each market pair.  
+
 
 Create the MIG
 ```
-gcloud compute instance-groups managed create subscribe-marketlist-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketlist-ig --size=1 --template=market-list-instance-template --zone=us-central1-a
+export PROJECT_NAME=xxxxx
+export INSTANCE_TEMPLATE=market-list-instance-template
+export ZONE=us-central1-a
+
+gcloud compute instance-groups managed create subscribe-marketlist-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketlist-ig --size=1 --template=$INSTANCE_TEMPLATE --zone=$ZONE
 ```
 
 Create the autoscaling attributes
 ```
-gcloud beta compute instance-groups managed set-autoscaling subscribe-marketlist-ig --project=$PROJECT_NAME --zone=us-central1-a --cool-down-period=60 --max-num-replicas=1 --min-num-replicas=1 --mode=off --target-cpu-utilization=1.0
+gcloud beta compute instance-groups managed set-autoscaling subscribe-marketlist-ig --project=$PROJECT_NAME --zone=$ZONE --cool-down-period=60 --max-num-replicas=1 --min-num-replicas=1 --mode=off --target-cpu-utilization=1.0
 ```
 
 *Note that this MIG will create MIGS for all the market pairs*
+
+You will notice that shortly after launching this MIG, marketpair MIGS will be created.  Once the marketpair MIGS are created, matching PubSub topics will be created
+
+
+
+### Create the `market pair` MIG (optional)
 
  * subscribe-marketpair-btc-usd-ig
 
 **This step is only necessary if you want to create a MIG manually for a specific market pair.  Otherwise, they will all be created by the `subscribe-marketlist-ig` MIG when it starts**
 
+
+The name of each instance group needs to have the market pair in the name.  Use a naming convention.  Use the gcloud commands below or the [console](https://cloud.google.com/compute/docs/instance-groups/create-zonal-mig#console)
+
 Create the MIG
 ```
-gcloud compute instance-groups managed create subscribe-marketpair-btc-usd-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketpair-btc-usd-ig --size=1 --template=market-pair-instance-template --zone=us-central1-a
+export PROJECT_NAME=xxxxx
+export INSTANCE_TEMPLATE=market-pair-instance-template
+export ZONE=us-central1-a
+EXPORT MKT_PAIR=btc-usd
+
+gcloud compute instance-groups managed create subscribe-marketpair-$MKT_PAIR-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketpair-btc-usd-ig --size=1 --template=$INSTANCE_TEMPLATE --zone=$ZONE
 ```
 
 Create the autoscaling attributes
 ```
-gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair-btc-usd-ig --project=$PROJECT_NAME --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=off --target-cpu-utilization=1.0
+gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair-btc-usd-ig --project=$PROJECT_NAME --zone=$ZONE --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=off --target-cpu-utilization=1.0
 ```
  
 ### Test
 
+ * Check logs in the market list VM
+   * ssh into the market list VM.  The path for the log file is `/var/marketfeed/websocket-to-pubsub-ingest/output.log`
  * Check if all MIGS have been created: [https://console.cloud.google.com/compute/instanceGroups/list](https://console.cloud.google.com/compute/instanceGroups/list)
  * Check if all PubSub topics have been created: [https://console.cloud.google.com/cloudpubsub/topic/list](https://console.cloud.google.com/cloudpubsub/topic/list)
  * Run the pulltop command to see if messages are getting published to the topic
 
 ```
+export $PROJECT_NAME=xxx
+export $TOPIC_NAME=xxx
+
 npm install -g pulltop
 pulltop projects/$PROJECT_NAME/topics/$TOPIC_NAME
 ```

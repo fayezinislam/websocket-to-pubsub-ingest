@@ -1,3 +1,20 @@
+#! /bin/bash
+
+export PROJECT_NAME=$(gcloud config list --format 'value(core.project)')
+export WS_URL="wss://ftx.com/ws/"
+export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_com_"
+export DEBUG=false
+# Parse market pair from hostname
+export HOST_NAME=$HOSTNAME
+
+MARKET_PAIR_STR1=${HOST_NAME:21}
+MARKET_STR_SEARCH="-ig"
+MARKET_PAIR=${MARKET_PAIR_STR1%%$MARKET_STR_SEARCH*}
+MARKET_PAIR=${MARKET_PAIR/-/\/}
+export MARKET_PAIR=${MARKET_PAIR^^}
+
+echo "Variables: $HOST_NAME, $MARKET_PAIR, $PROJECT_NAME, $WS_URL, $TOPIC_PREFIX, $DEBUG"
+
 
 echo "Updating OS"
 sudo apt update -y
@@ -38,21 +55,6 @@ EOF
 
 sudo service google-fluentd restart
 
-export PROJECT_NAME=$(gcloud config list --format 'value(core.project)')
-export WS_URL="wss://ftx.us/ws/"
-export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_us_"
-export DEBUG=false
-# Parse market pair from hostname
-export HOST_NAME=$HOSTNAME
-
-MARKET_PAIR_STR1=${HOST_NAME:21}
-MARKET_STR_SEARCH="-ig"
-MARKET_PAIR=${MARKET_PAIR_STR1%%$MARKET_STR_SEARCH*}
-MARKET_PAIR=${MARKET_PAIR/-/\/}
-export MARKET_PAIR=${MARKET_PAIR^^}
-
-echo "Variables: $HOST_NAME, $MARKET_PAIR, $PROJECT_NAME, $WS_URL, $TOPIC_PREFIX, $DEBUG"
-
 # Install Node.js
 echo "Installing Node.js"
 curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
@@ -64,7 +66,7 @@ npm --version
 echo "Cloning repo"
 git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
 cd websocket-to-pubsub-ingest
-git checkout market-ticker-trades-split
+//git checkout market-ticker-trades-split
 
 # Install libraries
 echo "Installing libraries"

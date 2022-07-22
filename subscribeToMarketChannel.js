@@ -50,7 +50,7 @@ var zone;
 var itName;
 var marketPairLimit;
 
-// node subscribeToMarketChannel.js "ftx-com-streaming-demo" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" 5 false
+// node subscribeToMarketChannel.js $PROJECT_NAME $ZONE $TEMPLATE_NAME $WS_URL $TOPIC_PREFIX $PAIRS_LIMIT $DEBUG
 if(clArgs.length != 7) {
     console.error("Incorrect number of arguments. \nUsage: node subscribeToMarketChannel.js {ws-url} {topic-prefix} {market-pair-limit} {debug}");
 } else {
@@ -137,14 +137,8 @@ var connect = async function() {
         // Parses through market list
         // Checks previous list to see if there are any changes
         // If no previous list, then iterate through each one
-        //  - check if there is a topic for the market name
-        //  - if there is, then 
-        //       - save that market name into the list
-        //       - then subsribe to the market feed
-        //  - if there is not, then 
-        //       - create a topic, 
-        //       - save the market name into the list
-        //       - then subsribe to the market feed
+        //  - for each market pair that is not in the list, then
+        //    launch the market pair MIG
         async function checkMarketList(marketListData) {
 
             // null check
@@ -183,14 +177,15 @@ var connect = async function() {
     });
 };
 
-//Connect to FTX US websocket server
+//Connect to websocket server
 connect();
 
-// execute external process
+// execute external process for each market pair
 async function launchExternalProcess(marketPair) {
 
-    // arguments: [0]=marketPair [1]=ws-url [2]=topic-prefix [3]=debug
+    // This code was kept to show that the MIG can be launched in several ways
 
+    // arguments: [0]=marketPair [1]=ws-url [2]=topic-prefix [3]=debug
     // Launch as a Node.js Process
     // var command = "node subscribeToMarketPairChannels.js \"" + marketPair + "\" \"" + wsUrl + "\" \"" + topicPrefix + "\" " + outputMessages;
     
@@ -202,7 +197,7 @@ async function launchExternalProcess(marketPair) {
     /*
     var marketPairStr = marketPair.replace("/","-").toLowerCase();
     var igName = "subscribe-marketpair-" + marketPairStr + "-ig";
-    var command = "gcloud compute instance-groups managed create " + igName + " --project=ftx-streaming-demo --base-instance-name=" + igName + " --size=1 --template=market-pair-instance-template --zone=us-central1-a && gcloud beta compute instance-groups managed set-autoscaling " + igName + " --project=ftx-streaming-demo --zone=us-central1-a --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9";
+    var command = "gcloud compute instance-groups managed create " + igName + " --project=" + project + " --base-instance-name=" + igName + " --size=1 --template=" + itName + " --zone=" + zone + " && gcloud beta compute instance-groups managed set-autoscaling " + igName + " --project=" + project + " --zone=" + zone + " --cool-down-period=30 --max-num-replicas=1 --min-num-replicas=1 --mode=on --target-cpu-utilization=0.9";
 
     console.log("Launching process: " + command);
     exec(command, (error, stdout, stderr) => {
