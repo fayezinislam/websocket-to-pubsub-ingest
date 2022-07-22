@@ -1,7 +1,6 @@
 # websocket-to-pubsub-ingest
 The websocket-to-pubsub-ingest adapter provides an easy way to ingest websocket streaming data into Pub/Sub topics in Google Cloud. 
 
-This example uses the websocket service from FTX for market feed data.
 
 ## How it works
 
@@ -44,120 +43,12 @@ There are 2 components, a `market list` component and a `market pair` component.
     * Managed instance groups
 
 
-## Installing required libraries
-
-```
-curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-node --version
-npm --version
-npm install
-npm install @google-cloud/pubsub
-npm install @google-cloud/compute
-npm install websocket
-```
-
-
-## Usage
-
-subscribeToMarketChannel.js {project-name} {zone} {template-name} {websocket-url} {topic-prefix} {market-pair-list-limit} {debug}
- - Connects to the websocket service
- - Subscribes to the market feed
- - Retrieves list of market pairs
- - For each pair, launches a separate process (subscribeToMarketPairChannels.js)
-   - There are several options to how the separate process is launched
-     - Separate nodejs process
-     - Docker container
-     - MIG
-     - See the function launchExternalProcess() for more details
-
-subscribeToMarketPairChannels.js {market-pair} {websocket-url} {topic-prefix} {debug}
- - Note: This can be run separately, but meant to be called by subscribeToMarketChannel.js
- - Connects to the websocket service
- - Checks if the PubSub topic exists for the market pair for both ticker and trades
- - If it does not, then it creates the topic
- - Subscribe to the ticker and trades feed for the market pair
- - For each message it receives from the websocket, publish it to the respective topic
-
-## Run application
-
-If launching the sub-processes for each market pair with docker, first build Docker container `market-pair-channels` using instructions below.  This will launch the market-pair-channels container for each market pair.  If launching with node.js process, it will spin off subscribeToMarketPairChannels.js directly.
-
-```
-node subscribeToMarketChannel.js "$PROJECT_NAME" "asia-northeast1-b" "market-pair-instance-template" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" -1 false
-```
-```
-node subscribeToMarketPairChannels.js "BTC/USD" "wss://ftx.com/ws/" "projects/$PROJECT_NAME/topics/ftx_com_" false
-```
-
-## Containerization
-
-Build the docker container.
-```
-git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
-git checkout market-ticker-trades-split 
-```
-
-### Build one for market channel and the second for market pair channels
-```
-docker build -t market-channel -f Dockerfile-MarketChannel .
-docker build -t market-pair-channels -f Dockerfile-MarketPairChannels .
-docker images
-```
-
-### Run in foreground mode
-```
-export PROJECT_NAME={project-name}
-docker run --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
-```
-
-### Run in background mode
-```
-export PROJECT_NAME={project-name}
-docker run -d --rm --name market-pair-btc-usd market-pair-channels "BTC/USD" "wss://ftx.us/ws/" "projects/$PROJECT_NAME/topics/ftx_us_" false
-```
-
-### Docker commands
-
-```
-docker ps -a
-
-docker kill {container-name}
-
-docker kill $(docker ps -q)
-
-docker logs {container-id}
-```
-
-### Publish container to Artifact Registry
-
-```
-gcloud artifacts repositories create marketfeed-images --repository-format=docker \
---location=us-central1 --description="Market feed docker images"
-
-gcloud auth configure-docker us-central1-docker.pkg.dev
-
-sudo docker tag market-pair-channels:latest us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels:latest
-
-sudo docker push us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels:latest
-
-The container is available at: `us-central1-docker.pkg.dev/$PROJECT_NAME/marketfeed-images/market-pair-channels`
-```
-
-#### If you get an authenticate error when pushing, try the following.  Also, confirm that the service account has access to the registry.
-
-```
-sudo docker logout
-sudo rm /root/.docker/config.json
-rm /home/$USER/.docker/config.json
-
-sudo gcloud auth configure-docker us-central1-docker.pkg.dev
-
-sudo gcloud artifacts repositories list
-```
 
 ## Run as a MIG
 
-### Create instance templates
+A MIG is created from an instance template.  Do the following to create the two instance templates, one for `market list` and one for `market pair`
+
+### Create instance templates (manual)
 
  * Choose Ubuntu 20.04
  * Create 2 instance templates:
@@ -167,81 +58,8 @@ sudo gcloud artifacts repositories list
 
 
 #### Startup script for `market-list-instance-template`
-When manually creating `market-list-instance-template`, use this startup script.  Set the variables to match your environment (project, zone, topic prefix, number of pairs, etc)
-```
-echo "Updating OS"
-sudo apt update -y
-sudo apt-get update -y
-sudo apt install curl -y
+When manually creating `market-list-instance-template`, use this [startup script](market-list-instance-template-startup.sh).  Set the variables to match your environment (project, zone, topic prefix, number of pairs, etc)
 
-echo "$PWD"
-mkdir /var/marketfeed
-chmod 777 /var/marketfeed
-cd /var/marketfeed
-
-# Install agents
-curl -sSO https://dl.google.com/cloudagents/add-logging-agent-repo.sh
-sudo bash add-logging-agent-repo.sh --also-install
-
-curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-sudo bash add-google-cloud-ops-agent-repo.sh --also-install
-
-# Update log settings to get the output of the process to Cloud Logging
-sudo tee /etc/google-fluentd/config.d/subscribeToMarketChannel.conf <<EOF
-<source>
-    @type tail
-    <parse>
-        # 'none' indicates the log is unstructured (text).
-        @type none
-    </parse>
-    # The path of the log file.
-    path /var/marketfeed/websocket-to-pubsub-ingest/output.log
-    # The path of the position file that records where in the log file
-    # we have processed already. This is useful when the agent
-    # restarts.
-    pos_file /var/lib/google-fluentd/pos/subscribeToMarketChannel-log.pos
-    read_from_head true
-    # The log tag for this log input.
-    tag unstructured-log
-</source>
-EOF
-
-sudo service google-fluentd restart
-
-export PROJECT_NAME=$(gcloud config list --format 'value(core.project)')
-export ZONE=asia-northeast1-b
-export MKT_PAIR_INSTANCE_TEMPLATE=market-pair-instance-template
-export WS_URL="wss://ftx.com/ws/"
-export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_com_"
-export MKT_PAIR_LIST_LIMIT=5
-export DEBUG=false
-
-echo "Variables: $HOST_NAME, $PROJECT_NAME, $ZONE, $MKT_PAIR_INSTANCE_TEMPLATE, $WS_URL, $TOPIC_PREFIX, $MKT_PAIR_LIST_LIMIT, $DEBUG"
-
-# Install Node.js
-echo "Installing Node.js"
-curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-sudo apt-get install -y nodejs
-node --version
-npm --version
-
-# Install program
-echo "Cloning repo"
-git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
-cd websocket-to-pubsub-ingest
-git checkout market-ticker-trades-split
-
-# Install libraries
-echo "Installing libraries"
-npm install
-npm install @google-cloud/pubsub
-npm install @google-cloud/compute
-npm install websocket
-
-# Launch program
-echo "Launching program"
-nohup node subscribeToMarketChannel.js $PROJECT_NAME $ZONE $MKT_PAIR_INSTANCE_TEMPLATE $WS_URL $TOPIC_PREFIX $MKT_PAIR_LIST_LIMIT $DEBUG > output.log 2>&1 &
-```
 
 #### Create the `market-list-instance-template` instance template 
 
@@ -260,85 +78,9 @@ gcloud compute instance-templates create market-list-instance-template --project
 
 
 #### Startup script for `market-pair-instance-template`
-Set the variables to match your environment (project, topic prefix, url, etc)
-```
-echo "Updating OS"
-sudo apt update -y
-sudo apt-get update -y
-sudo apt install curl -y
 
-echo "$PWD"
-mkdir /var/marketfeed
-chmod 777 /var/marketfeed
-cd /var/marketfeed
+Here is the [startup script](market-pair-instance-template-startup.sh), set the variables to match your environment (project, topic prefix, url, etc)
 
-# Install agents
-curl -sSO https://dl.google.com/cloudagents/add-logging-agent-repo.sh
-sudo bash add-logging-agent-repo.sh --also-install
-
-curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-sudo bash add-google-cloud-ops-agent-repo.sh --also-install
-
-# Update log settings to get the output of the process to Cloud Logging
-sudo tee /etc/google-fluentd/config.d/subscribeToMarketPairChannels.conf <<EOF
-<source>
-    @type tail
-    <parse>
-        # 'none' indicates the log is unstructured (text).
-        @type none
-    </parse>
-    # The path of the log file.
-    path /var/marketfeed/websocket-to-pubsub-ingest/output.log
-    # The path of the position file that records where in the log file
-    # we have processed already. This is useful when the agent
-    # restarts.
-    pos_file /var/lib/google-fluentd/pos/subscribeToMarketPairChannels-log.pos
-    read_from_head true
-    # The log tag for this log input.
-    tag unstructured-log
-</source>
-EOF
-
-sudo service google-fluentd restart
-
-export PROJECT_NAME=$(gcloud config list --format 'value(core.project)')
-export WS_URL="wss://ftx.us/ws/"
-export TOPIC_PREFIX="projects/$PROJECT_NAME/topics/ftx_us_"
-export DEBUG=false
-# Parse market pair from hostname
-export HOST_NAME=$HOSTNAME
-
-MARKET_PAIR_STR1=${HOST_NAME:21}
-MARKET_STR_SEARCH="-ig"
-MARKET_PAIR=${MARKET_PAIR_STR1%%$MARKET_STR_SEARCH*}
-MARKET_PAIR=${MARKET_PAIR/-/\/}
-export MARKET_PAIR=${MARKET_PAIR^^}
-
-echo "Variables: $HOST_NAME, $MARKET_PAIR, $PROJECT_NAME, $WS_URL, $TOPIC_PREFIX, $DEBUG"
-
-# Install Node.js
-echo "Installing Node.js"
-curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-sudo apt-get install -y nodejs
-node --version
-npm --version
-
-# Install program
-echo "Cloning repo"
-git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
-cd websocket-to-pubsub-ingest
-git checkout market-ticker-trades-split
-
-# Install libraries
-echo "Installing libraries"
-npm install
-npm install @google-cloud/pubsub
-npm install websocket
-
-# Launch program
-echo "Launching program"
-nohup node subscribeToMarketPairChannels.js $MARKET_PAIR $WS_URL $TOPIC_PREFIX $DEBUG > output.log 2>&1 &
-```
 
 
 #### Create the `market-pair-instance-template` instance template with gCloud Command 
@@ -390,8 +132,10 @@ gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair
  * Check if all PubSub topics have been created: [https://console.cloud.google.com/cloudpubsub/topic/list](https://console.cloud.google.com/cloudpubsub/topic/list)
  * Run the pulltop command to see if messages are getting published to the topic
 
-   `pulltop projects/$PROJECT_NAME/topics/ftx_us_ticker_btc_usd`
-   `pulltop projects/$PROJECT_NAME/topics/ftx_us_trades_btc_usd`
+```
+npm install -g pulltop
+pulltop projects/$PROJECT_NAME/topics/$TOPIC_NAME
+```
 
 
 ## Run in Cloud Run
