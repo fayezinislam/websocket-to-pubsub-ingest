@@ -193,8 +193,8 @@ gcloud beta compute instance-groups managed set-autoscaling subscribe-marketpair
  * Run the pulltop command to see if messages are getting published to the topic
 
 ```
-export $PROJECT_NAME=xxx
-export $TOPIC_NAME=xxx
+export PROJECT_NAME=xxx
+export TOPIC_NAME=xxx
 
 npm install -g pulltop
 pulltop projects/$PROJECT_NAME/topics/$TOPIC_NAME
