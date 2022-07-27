@@ -8,17 +8,17 @@ The goal is split the original websocket stream and send the messages to PubSub 
 
 ![Market Data Delivery diagram](images/market-data-delivery.png)
 
-There are 2 components, a `market list` component and a `market pair` component.  These components are deployed as MIGs.  A MIG is a managed instance group, which is a VM with extra configuration around it.
+There are 2 MIG types, a `market list` MIG and a `market pair` MIG.  A MIG is a managed instance group, which is like a VM with extra configuration around it.
 
 ![Market Data Delivery diagram](images/market-data-relay.png)
 
- * marketlist - The `market list` component will connect to the websocket, subscribe to the market channel, and retrieve a list of market pairs.  For each market pair, it will launch a `market pair` component.  It will remain connected to the websocket.  When a new market pair comes on line, it will notice it and launch a `market pair` component for the new pair.
+ * marketlist - The `market list` MIG will connect to the websocket, subscribe to the market channel, and retrieve a list of market pairs.  For each market pair, it will launch a `market pair` MIG.  It will remain connected to the websocket.  When a new market pair comes on line, it will notice it and launch a `market pair` component for the new pair.
    * Components
      * Script: startup script and subscribeToMarketChannel.js
      * Instance template: `market-list-instance-template`
      * Instance group: subscribe-marketlist-ig
 
- * marketpair - One `market pair` component is launched per market pair.  It will connect to the websocket, subscribe to the ticker, trades and orderbook channels for that marketpair, and then publish each message to a matching PubSub topic. If the topic does not exist for the market pair and channel, it will create one before publishing to it.  
+ * marketpair - One `market pair` MIG is launched per market pair.  It will connect to the websocket, subscribe to the ticker, trades and orderbook channels for that marketpair, and then publish each message to a matching PubSub topic. If the topic does not exist for the market pair and channel, it will create one before publishing to it.  
    * Components
      * Script: startup script and subscribeToMarketPairChannels.js
      * Instance template: `market-pair-instance-template`
@@ -50,7 +50,7 @@ There are 2 components, a `market list` component and a `market pair` component.
 
 ## Run as MIG Setup
 
-Do the following steps to setup the components
+Do the following steps to setup the MIGs
 
 1) Create `market list` instance template
 2) Create `market pair` instance template
@@ -113,7 +113,7 @@ Open the [startup script](startup-scripts/market-pair-instance-template-startup.
 Create the instance template using the gCloud command below.  Note that this will reference the startup script from the previous step. (Note that this can also be done manually through the [console](https://cloud.google.com/compute/docs/instance-templates/create-instance-templates#console)
 
 Before running the gcloud command, set the following environment variables:
- * PROJECT_NAME - service account to use
+ * PROJECT_NAME - project name
  * ZONE - zone to deploy the MIGs to
  * MACHINE_TYPE - VM shape to use
  * SERVICE_ACCOUNT - service account that the VM runs with (see IAM for default compute engine SA)
