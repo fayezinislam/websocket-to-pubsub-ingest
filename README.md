@@ -63,7 +63,7 @@ Do the following steps to deploy the market list instance template
 
 ####  1a) Customize the startup script
 
-Open the [startup script](startup-scripts/market-list-instance-template-startup.sh).  Set the variables to match your environment.
+Open the startup script [startup-scripts/market-list-instance-template-startup.sh](startup-scripts/market-list-instance-template-startup.sh).  Set the variables to match your environment.
 
  * ZONE - zone to deploy the MIGs to
  * MKT_PAIR_INSTANCE_TEMPLATE - instance template for market pairs: market-pair-instance-template
@@ -89,10 +89,11 @@ export ZONE=us-central1-a
 export MACHINE_TYPE=e2-small
 export SERVICE_ACCOUNT=xxxxxxxx-compute@developer.gserviceaccount.com
 
-gcloud compute instance-templates create market-list-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-list-instance-template-startup.sh,enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-list-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+gcloud compute instance-templates create market-list-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,address=,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-list-instance-template-startup.sh --metadata=enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-list-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
 
 ```
 
+Confirm through the [console](https://pantheon.corp.google.com/compute/instanceTemplates/list) that the instance template was created.
 
 
 ### 2) Create `market pair` instance template
@@ -101,7 +102,7 @@ Do the following steps to deploy the market pair instance template
 
 ####  2a) Customize the startup script
 
-Open the [startup script](startup-scripts/market-pair-instance-template-startup.sh).  Set the variables to match your environment.
+Open the startup script [startup-scripts/market-pair-instance-template-startup.sh](startup-scripts/market-pair-instance-template-startup.sh).  Set the variables to match your environment.
 
  * WS_URL - websocket url
  * TOPIC_PREFIX - full prefix for topic names
@@ -124,9 +125,11 @@ export ZONE=us-central1-a
 export MACHINE_TYPE=e2-small
 export SERVICE_ACCOUNT=xxxxxxxx-compute@developer.gserviceaccount.com
 
-gcloud compute instance-templates create market-pair-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-pair-instance-template-startup.sh,enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
+gcloud compute instance-templates create market-pair-instance-template --project=$PROJECT_NAME --machine-type=$MACHINE_TYPE --network-interface=network=default,address=,network-tier=PREMIUM --metadata-from-file=startup-script=startup-scripts/market-pair-instance-template-startup.sh --metadata=enable-oslogin=true --maintenance-policy=MIGRATE --provisioning-model=STANDARD --service-account=$SERVICE_ACCOUNT --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsub,https://www.googleapis.com/auth/source.read_only,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/trace.append,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/userinfo.email --create-disk=auto-delete=yes,boot=yes,device-name=market-pair-instance-template,image=projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712,mode=rw,size=20,type=pd-balanced --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring --reservation-affinity=any
 
 ```
+
+Confirm through the [console](https://pantheon.corp.google.com/compute/instanceTemplates/list) that the instance template was created.
 
 
 ### 3) Create the `market list` MIG

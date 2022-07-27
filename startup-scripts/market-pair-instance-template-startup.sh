@@ -66,7 +66,7 @@ npm --version
 echo "Cloning repo"
 git clone https://github.com/fayezinislam/websocket-to-pubsub-ingest.git
 cd websocket-to-pubsub-ingest
-//git checkout market-ticker-trades-split
+#git checkout market-ticker-trades-split
 
 # Install libraries
 echo "Installing libraries"
