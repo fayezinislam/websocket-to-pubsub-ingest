@@ -201,15 +201,6 @@ pulltop projects/$PROJECT_NAME/topics/$TOPIC_NAME
 ```
 
 
-## Run in Cloud Run
-
-Cloud Run is typically used for serving data through a webservice or API, so Cloud Run is not a good choice for a program like this.  
-
-## Run in Kubernetes
-
-Coming soon
-
-
 
 
 
