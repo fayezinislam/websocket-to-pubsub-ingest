@@ -200,7 +200,21 @@ npm install -g pulltop
 pulltop projects/$PROJECT_NAME/topics/$TOPIC_NAME
 ```
 
+## Disclaimers
+
+  
+_This is not an officially supported Google product._
+
+  
+The `websocket-to-pubsub-ingest` is under active development. Interfaces and functionality may change at any time.
 
 
+
+## License
+
+
+This repository is licensed under the Apache 2 license (see [LICENSE](LICENSE.txt)).
+
+Contributions are welcome. See [CONTRIBUTING](CONTRIBUTING.md) for more information. 
 
 
