@@ -176,9 +176,9 @@ Create the MIG
 export PROJECT_NAME=xxxxx
 export INSTANCE_TEMPLATE=market-pair-instance-template
 export ZONE=us-central1-a
-EXPORT MKT_PAIR=btc-usd
+export MKT_PAIR=btc-usd
 
-gcloud compute instance-groups managed create subscribe-marketpair-$MKT_PAIR-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketpair-btc-usd-ig --size=1 --template=$INSTANCE_TEMPLATE --zone=$ZONE
+gcloud compute instance-groups managed create subscribe-marketpair-$MKT_PAIR-ig --project=$PROJECT_NAME --base-instance-name=subscribe-marketpair-$MKT_PAIR-ig --size=1 --template=$INSTANCE_TEMPLATE --zone=$ZONE
 ```
 
 Create the autoscaling attributes
