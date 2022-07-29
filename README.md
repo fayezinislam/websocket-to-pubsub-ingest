@@ -31,7 +31,7 @@ There are 2 MIG types, a `market list` MIG and a `market pair` MIG.  A MIG is a 
 - [Enable the Google Cloud Pub/Sub API](https://console.cloud.google.com/flows/enableapi?apiid=pubsub.googleapis.com).
 - [Set up authentication with a service account so you can access the API from your local workstation](https://cloud.google.com/docs/authentication/getting-started).
 - Confirm service account has these roles or equivalent privileges:
-  * Cloud Pub/Sub Service Agent
+  * Cloud Pub/Sub Editor
   * Compute Engine Service Agent
   * Compute Instance Admin (v1)
   * Compute Instance Admin (beta)
