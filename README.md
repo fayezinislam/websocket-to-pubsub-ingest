@@ -83,6 +83,9 @@ Before running the gcloud command, set the following environment variables:
  * MACHINE_TYPE - VM shape to use
  * SERVICE_ACCOUNT - service account that the VM runs with (see IAM for default compute engine SA)
 
+
+Note: If you need the VM to not have a public IP address, remove the `address=` value from the `--network-interface` parameter in the gcloud command below.  The value would then be: `--network-interface=network=default,network-tier=PREMIUM`
+
 ```
 export PROJECT_NAME=xxxxxx
 export ZONE=us-central1-a
@@ -118,6 +121,8 @@ Before running the gcloud command, set the following environment variables:
  * ZONE - zone to deploy the MIGs to
  * MACHINE_TYPE - VM shape to use
  * SERVICE_ACCOUNT - service account that the VM runs with (see IAM for default compute engine SA)
+
+Note: If you need the VM to not have a public IP address, remove the `address=` value from the `--network-interface` parameter in the gcloud command below.  The value would then be: `--network-interface=network=default,network-tier=PREMIUM`
 
 ```
 export PROJECT_NAME=xxxxxx
