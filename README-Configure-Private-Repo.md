@@ -26,10 +26,11 @@ Service account: @cloudbuild.gserviceaccount.com
 Add secrets to the secret manager for github (https://cloud.google.com/secret-manager/docs/create-secret)
 
 Note that this should the github username, not email address
+
+```
 GITHUB_USERNAME=xxxx
 GITHUB_KEY=xxxx
 
-```
 echo -n "$GITHUB_USERNAME" | gcloud secrets create github-username \
     --replication-policy="automatic" \
     --data-file=-
@@ -43,10 +44,10 @@ echo -n "$GITHUB_KEY" | gcloud secrets create github-key \
 
 #### Update startup script to the following:
 
-Update the startup scripts to clone from git using the new authentication
+Update the [startup scripts](./startup-scripts) to clone from git using the new authentication
 
 
-Old:
+Old (Replace):
 ```
 # Install program
 echo "Cloning repo"
@@ -100,7 +101,7 @@ cat ./id_github.pub
 Update the startup scripts to clone from git using the new authentication
 
 
-Old:
+Old (Replace):
 ```
 # Install program
 echo "Cloning repo"
@@ -117,9 +118,9 @@ ssh-keyscan -t rsa github.com > known_hosts.github
 
 ## Get github private key into secret
 GITHUB_PK=$(gcloud secrets versions access 1 --secret="github-pk")
-echo "$GITHUB_PK"  >> /root/.ssh/id_rsa
+echo "$GITHUB_PK"  >> ~/.ssh/id_rsa
 chmod 400 /root/.ssh/id_rsa
-cp known_hosts.github /root/.ssh/known_hosts
+cp known_hosts.github ~/.ssh/known_hosts
 
 echo "Cloning repo"
 git@github.com:fayezinislam/websocket-to-pubsub-ingest.git
@@ -128,6 +129,10 @@ cd websocket-to-pubsub-ingest
 
 ## 2 - GCP Cloud Repository
 
+You can either create a new repo and push the code there, or mirror a repo to an existing github repo.
+
+
+### 2a - Push new code to Repo
 
 Create a [Cloud Repository](https://cloud.google.com/source-repositories/docs/create-code-repository)
 
@@ -136,8 +141,6 @@ REPO_NAME=xxxx
 
 gcloud source repos create $REPO_NAME
 ```
-
-### 2a - Push new code to Repo
 
 Push the code to Cloud Repository
 ```
@@ -152,7 +155,7 @@ git push origin master
 Mirror an existing [github repo] (https://cloud.google.com/source-repositories/docs/create-code-repository).  Note that you will need admin permission on the github repo to configure this.
 
 
-#### Update the Startup Script
+### Update the Startup Script
 
 
 Update the startup scripts to clone from git using the new authentication
