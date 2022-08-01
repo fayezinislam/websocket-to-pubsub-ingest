@@ -3,11 +3,11 @@
 
 There are two approaches to using a private repo 
  * Using Github private repo
- * Using GCP's Cloud Repository
+ * Using GCP's Cloud Source Repository
 
-It all depends on how your team is using the repo and communicating.  If the team is using Github private repo, then follow approach #1.  If your team is using GCP Cloud Repository and it can be shared with all people involved, then follow approach #2.
+It all depends on how your team is using the repo and communicating.  If the team is using Github private repo, then follow approach #1.  If your team is using GCP Cloud Source Repository and it can be shared with all people involved, then follow approach #2.
 
-You can also configure GCP Cloud Repository to "mirror" a github repo.  Whenever the github repo is updated, it is reflected in the cloud repository repo.  Then use the service account to access the cloud repository repo.  (Note that you will need admin permissions to configure this)
+You can also configure GCP Cloud Source Repository to "mirror" a github repo.  Whenever the github repo is updated, it is reflected in the cloud source repository repo.  Then use the service account to access the cloud source repository repo.  (Note that you will need admin permissions to configure this)
 
 ## 1 - Github Private Repo
 
@@ -127,14 +127,14 @@ git@github.com:fayezinislam/websocket-to-pubsub-ingest.git
 cd websocket-to-pubsub-ingest
 ```
 
-## 2 - GCP Cloud Repository
+## 2 - GCP Cloud Source Repository
 
 You can either create a new repo and push the code there, or mirror a repo to an existing github repo.
 
 
 ### 2a - Push new code to Repo
 
-Create a [Cloud Repository](https://cloud.google.com/source-repositories/docs/create-code-repository)
+Create a [Cloud Source Repository](https://cloud.google.com/source-repositories/docs/create-code-repository)
 
 ```
 REPO_NAME=xxxx
@@ -142,7 +142,7 @@ REPO_NAME=xxxx
 gcloud source repos create $REPO_NAME
 ```
 
-Push the code to Cloud Repository
+Push the code to Cloud Source Repository
 ```
 gcloud source repos clone $REPO_NAME
 git add .
