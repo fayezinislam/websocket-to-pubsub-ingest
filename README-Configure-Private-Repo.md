@@ -9,19 +9,25 @@ It all depends on how your team is using the repo and communicating.  If the tea
 
 You can also configure GCP Cloud Source Repository to "mirror" a github repo.  Whenever the github repo is updated, it is reflected in the cloud source repository repo.  Then use the service account to access the cloud source repository repo.  (Note that you will need admin permissions to configure this)
 
+## Prerequisites
+
+Add role in IAM to service account to access cloud secret manager
+```
+Role: Secret Manager Secret Accessor
+Service account: @cloudbuild.gserviceaccount.com 
+```
+
 ## 1 - Github Private Repo
 
 If github is the preferred repository, do the following for the startup scripts to access the private repo.  Both involve using GCP Secret Manager.
 
 ### 1a - Store username and personal access token
 
+In github, create a personal access token 
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
 https://github.com/settings/tokens
 
-Add role to service account to access cloud secret manager
-Role: Secret Manager Secret Accessor
-Service account: @cloudbuild.gserviceaccount.com 
 
 Add secrets to the secret manager for github (https://cloud.google.com/secret-manager/docs/create-secret)
 
@@ -29,7 +35,7 @@ Note that this should the github username, not email address
 
 ```
 GITHUB_USERNAME=xxxx
-GITHUB_KEY=xxxx
+GITHUB_TOKEN=xxxx
 
 echo -n "$GITHUB_USERNAME" | gcloud secrets create github-username \
     --replication-policy="automatic" \
@@ -37,7 +43,7 @@ echo -n "$GITHUB_USERNAME" | gcloud secrets create github-username \
 ```
 Note that this should be the personal access token, not the password
 ```
-echo -n "$GITHUB_KEY" | gcloud secrets create github-key \
+echo -n "$GITHUB_TOKEN" | gcloud secrets create github-token \
     --replication-policy="automatic" \
     --data-file=-
 ```
@@ -59,7 +65,7 @@ New:
 ```
 # Get Github Login 
 GITHUB_USERNAME=$(gcloud secrets versions access 1 --secret="github-username")
-GITHUB_KEY=$(gcloud secrets versions access 1 --secret="github-key")
+GITHUB_KEY=$(gcloud secrets versions access 1 --secret="github-token")
 
 # Install program
 echo "Cloning repo"
