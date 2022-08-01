@@ -5,7 +5,9 @@ There are two approaches to using a private repo
  * Using Github private repo
  * Using GCP's Cloud Repository
 
-It all depends on how your team is using the repo and communicating.  If the team is using Github private repo, then follow approach #1.  If your team is using GCP Cloud Repository and it can be shared with all people involved, then follow approach #2
+It all depends on how your team is using the repo and communicating.  If the team is using Github private repo, then follow approach #1.  If your team is using GCP Cloud Repository and it can be shared with all people involved, then follow approach #2.
+
+You can also configure GCP Cloud Repository to "mirror" a github repo.  Whenever the github repo is updated, it is reflected in the cloud repository repo.  Then use the service account to access the cloud repository repo.  (Note that you will need admin permissions to configure this)
 
 ## 1 - Github Private Repo
 
@@ -147,7 +149,7 @@ git push origin master
 
 ### 2b - Mirror Github Repo
 
-Mirror an existing [github repo] (https://cloud.google.com/source-repositories/docs/create-code-repository)
+Mirror an existing [github repo] (https://cloud.google.com/source-repositories/docs/create-code-repository).  Note that you will need admin permission on the github repo to configure this.
 
 
 #### Update the Startup Script
