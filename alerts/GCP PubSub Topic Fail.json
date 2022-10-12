@@ -1,0 +1,41 @@
+{
+  "name": "projects/ftx-com-streaming-demo/alertPolicies/13211723125560895130",
+  "displayName": "GCP PubSub Topic Fail",
+  "documentation": {},
+  "userLabels": {},
+  "conditions": [
+    {
+      "name": "projects/ftx-com-streaming-demo/alertPolicies/13211723125560895130/conditions/13211723125560896237",
+      "displayName": "Cloud Pub/Sub Topic - Publish requests Failure 2",
+      "conditionAbsent": {
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_MEAN"
+          }
+        ],
+        "duration": "300s",
+        "filter": "resource.type = \"pubsub_topic\" AND metric.type = \"pubsub.googleapis.com/topic/send_request_count\"",
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "notificationChannels": [
+    "projects/ftx-com-streaming-demo/notificationChannels/4599367331925554115"
+  ],
+  "creationRecord": {
+    "mutateTime": "2022-08-23T18:10:10.328831455Z",
+    "mutatedBy": "davidmehi@fayezinislam.altostrat.com"
+  },
+  "mutationRecord": {
+    "mutateTime": "2022-08-23T18:10:10.328831455Z",
+    "mutatedBy": "davidmehi@fayezinislam.altostrat.com"
+  }
+}
